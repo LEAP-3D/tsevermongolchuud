@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
-
 const Home = () => {
-  return <>hellasdo from sdaheome</>;
+  const Test = () => {
+    console.log(`Hello`);
+  };
+
+  return <>hello from Naraa{Test} </>;
 };
 
 export default Home;
