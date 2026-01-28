@@ -41,12 +41,5 @@ jobs:
       - name: Deploy Preview to Vercel
         id: deploy
         run: |
-          # Capture the preview URL to a variable
-          COMMAND_OUTPUT=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          echo "preview_url=$COMMAND_OUTPUT" >> $GITHUB_OUTPUT
-
-      - name: Comment Preview URL
-        uses: mshick/add-pr-comment@v2
-        with:
-          message: |
-            🚀 Preview Deployed: ${{ steps.deploy.outputs.preview_url }}
+          # We use --token here to ensure authentication
+          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
