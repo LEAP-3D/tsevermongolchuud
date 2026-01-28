@@ -8,7 +8,6 @@ permissions:
   pull-requests: write
 
 jobs:
-  # 1. This satisfies the 'lint' requirement
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -21,6 +20,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run Lint
+
         run: npm run lint
 
   build:
@@ -36,18 +36,39 @@ jobs:
         with:
           node-version: "latest"
           cache: "npm"
-          check-latest: true
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma Client
         run: npx prisma generate
-      - name: Pull Vercel Environment Info
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Deploy Preview to Vercel
+      - name: Vercel Pull and Build
+        run: |
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+  preview:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+          cache: "npm"
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      - name: Pull and Deploy Preview
         id: deploy
         run: |
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --token=${{ secrets.VERCEL_TOKEN }}
           vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
