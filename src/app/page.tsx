@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-
 const Home = () => {
-  return <>hellasdo from sdaheome</>;
+  return <>hellasdo from main branch</>;
 };
 
 export default Home;
