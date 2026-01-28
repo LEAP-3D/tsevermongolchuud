@@ -1,5 +1,6 @@
-"use client";
+import AppleStyleDashboard from "@/components/AppleStyleDashboard";
 
+<<<<<<< HEAD
 const Home = () => {
   return <>hellasdo from main branch</>;
   const Test = () => {
@@ -10,3 +11,8 @@ const Home = () => {
 };
 
 export default Home;
+=======
+export default function Home() {
+  return <AppleStyleDashboard />;
+}
+>>>>>>> 5dcfd92 (tesT)
