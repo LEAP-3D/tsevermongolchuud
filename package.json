@@ -3,21 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev",
-    "build": "npm run lint && next build",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
     "next": "16.0.10",
+    "pg": "^8.17.2",
+    "prisma": "^7.2.0",
     "react": "19.2.1",
     "react-dom": "19.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
@@ -27,7 +31,6 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "16.0.10",
     "eslint-plugin-unused-imports": "^4.3.0",
-    "prisma": "^7.2.0",
     "tailwindcss": "^4",
     "typescript": "^5.0.0"
   }
