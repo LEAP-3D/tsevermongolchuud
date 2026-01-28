@@ -1,61 +1,52 @@
 name: CI
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
-  id-token: write
   contents: read
   pull-requests: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run Next.js lint
-        run: npm run lint
   preview:
     runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: "latest"
+          cache: "npm"
+          check-latest: true
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
 
       - name: Install dependencies
-        run: npm install
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+        run: npm ci
 
-      - name: Install dependencies
-        run: npm install
+      - name: Run Lint
+        run: npm run lint
+
+      - name: Pull Vercel Environment Info
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Preview to Vercel
+        id: deploy
+        run: |
+          # Capture the preview URL to a variable
+          COMMAND_OUTPUT=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "preview_url=$COMMAND_OUTPUT" >> $GITHUB_OUTPUT
+
+      - name: Comment Preview URL
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            🚀 Preview Deployed: ${{ steps.deploy.outputs.preview_url }}
