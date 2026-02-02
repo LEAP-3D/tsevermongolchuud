@@ -27,10 +27,26 @@ const COLORS = [
   "#06b6d4",
 ];
 
+type DailyDataPoint = {
+  date: string;
+  visits: number;
+};
+
+type BlockedVsAllowedPoint = {
+  name: string;
+  value: number;
+};
+
+type TopDomainPoint = {
+  name: string;
+  visits: number;
+  percent?: number;
+};
+
 type StatsChartsProps = {
-  dailyData: any[];
-  blockedVsAllowed: any[];
-  topDomainsData: any[];
+  dailyData: DailyDataPoint[];
+  blockedVsAllowed: BlockedVsAllowedPoint[];
+  topDomainsData: TopDomainPoint[];
 };
 
 export default function StatsCharts({
@@ -95,7 +111,7 @@ export default function StatsCharts({
               cy="50%"
               labelLine={false}
               label={({ name, percent }) =>
-                `${name}: ${(percent * 100).toFixed(0)}%`
+                `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`
               }
               outerRadius={120}
               dataKey="visits"
