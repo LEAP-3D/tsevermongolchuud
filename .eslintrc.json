@@ -2,10 +2,12 @@
   "extends": ["next/core-web-vitals", "next/typescript"],
   "plugins": ["@typescript-eslint", "unused-imports"],
   "rules": {
-    /* ❌ Error on unused imports */
+    /* --- STRICT RULES --- */
+
+    /* Error on unused imports */
     "unused-imports/no-unused-imports": "error",
 
-    /* ❌ Error on unused variables (including state) */
+    /* Error on unused variables (including state) */
     "@typescript-eslint/no-unused-vars": [
       "error",
       {
@@ -17,7 +19,14 @@
       }
     ],
 
+    /* --- OVERRIDES & DISABLES --- */
+
     /* Prevent false positives from base rule */
-    "no-unused-vars": "off"
+    "no-unused-vars": "off",
+
+    /* Allows you to use characters like ' and " directly in JSX.
+       Note: Backticks (`) still require {" "} wrapping due to JS syntax. 
+    */
+    "react/no-unescaped-entities": "off"
   }
 }

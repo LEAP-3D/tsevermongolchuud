@@ -62,7 +62,7 @@ export default function AiAnalysisTab() {
           AI Assistant
         </h1>
         <p className="text-base text-gray-500">
-          Ask questions about your children's online safety and activity
+          Ask questions about your children`s online safety and activity
         </p>
       </div>
 
@@ -147,7 +147,7 @@ export default function AiAnalysisTab() {
               AI-Powered Insights
             </h3>
             <p className="text-xs text-gray-700 leading-relaxed">
-              This AI assistant analyzes your children's online behavior in
+              This AI assistant analyzes your children`s online behavior in
               real-time and provides personalized recommendations to keep them
               safe.
             </p>

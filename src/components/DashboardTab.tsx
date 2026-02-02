@@ -53,7 +53,7 @@ export default function DashboardTab() {
             Dashboard
           </h1>
           <p className="text-base text-gray-500">
-            Monitor your family's internet activity
+            Monitor your family`s internet activity
           </p>
         </div>
         <div className="flex items-center gap-0 bg-gray-100 rounded-lg p-1">
@@ -78,7 +78,7 @@ export default function DashboardTab() {
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-500 mb-3">
-                Today's Usage
+                Today's usage
               </p>
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-1">

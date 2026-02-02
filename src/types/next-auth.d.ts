@@ -2,7 +2,7 @@
 import "next-auth";
 
 declare module "next-auth" {
-  interface Session {
+  type Session = {
     user: {
       id: string;
       apiKey?: string;
@@ -10,5 +10,5 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
     };
-  }
+  };
 }

@@ -3,8 +3,9 @@
 
 import { useEffect, useState } from "react";
 import { PlusIcon } from "lucide-react";
-import BlacklistAddForm from "@/components/dashboard/blacklist/BlacklistAddForm";
-import BlacklistTable from "@/components/dashboard/blacklist/BlacklistTable";
+
+import BlacklistTable from "../statistics/BlacklistTable";
+import BlacklistAddForm from "../../../components/BlacklistAddForm";
 
 type BlacklistItem = {
   id: string;

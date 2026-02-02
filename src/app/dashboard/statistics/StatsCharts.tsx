@@ -28,9 +28,9 @@ const COLORS = [
 ];
 
 type StatsChartsProps = {
-  dailyData: any[];
-  blockedVsAllowed: any[];
-  topDomainsData: any[];
+  dailyData: never[];
+  blockedVsAllowed: Array<{ name: string; value: number }>;
+  topDomainsData: Array<{ name: string; visits: number }>;
 };
 
 export default function StatsCharts({
@@ -95,7 +95,7 @@ export default function StatsCharts({
               cy="50%"
               labelLine={false}
               label={({ name, percent }) =>
-                `${name}: ${(percent * 100).toFixed(0)}%`
+                `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`
               }
               outerRadius={120}
               dataKey="visits"
