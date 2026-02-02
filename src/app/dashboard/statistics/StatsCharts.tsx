@@ -28,7 +28,12 @@ const COLORS = [
 ];
 
 type StatsChartsProps = {
-  dailyData: never[];
+  dailyData: {
+    date: string;
+    visits: number;
+    blocked: number;
+    allowed: number;
+  }[];
   blockedVsAllowed: Array<{ name: string; value: number }>;
   topDomainsData: Array<{ name: string; visits: number }>;
 };

@@ -1,22 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { Clock, Shield, Ban, TrendingUp, ArrowUpRight } from "lucide-react";
+import { Clock, Shield, Ban, TrendingUp } from "lucide-react";
+import DashboardUsageChart from "./DashboardUsageChart";
+import DashboardCategoriesChart from "./DashboardCategoriesChart";
 
 const usageData = [
   { day: "Mon", hours: 3.5 },
@@ -34,12 +21,6 @@ const categoryData = [
   { name: "Games", value: 20, color: "#FF2D55" },
   { name: "Social", value: 15, color: "#FF9500" },
   { name: "Other", value: 10, color: "#8E8E93" },
-];
-
-const riskData = [
-  { level: "Safe", count: 245, color: "#34C759" },
-  { level: "Suspicious", count: 32, color: "#FF9500" },
-  { level: "Dangerous", count: 5, color: "#FF3B30" },
 ];
 
 export default function DashboardTab() {
@@ -78,7 +59,7 @@ export default function DashboardTab() {
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-500 mb-3">
-                Today's usage
+                Today`s usage
               </p>
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -152,79 +133,10 @@ export default function DashboardTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 border border-gray-200/80">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Usage Timeline
-          </h3>
-          <button className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium">
-            Details <ArrowUpRight className="w-4 h-4" />
-          </button>
-        </div>
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={usageData}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#f0f0f0"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="day"
-              stroke="#8E8E93"
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis stroke="#8E8E93" axisLine={false} tickLine={false} />
-            <Tooltip
-              contentStyle={{
-                background: "#fff",
-                border: "1px solid #e5e5e5",
-                borderRadius: "12px",
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="hours"
-              stroke="#007AFF"
-              strokeWidth={2.5}
-              dot={{ fill: "#007AFF", r: 4, strokeWidth: 0 }}
-              activeDot={{ r: 6, fill: "#007AFF", strokeWidth: 0 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <DashboardUsageChart data={usageData} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-6 border border-gray-200/80">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">
-            Categories
-          </h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={categoryData}
-                dataKey="value"
-                cx="50%"
-                cy="50%"
-                outerRadius={75}
-                innerRadius={45}
-                strokeWidth={0}
-              >
-                {categoryData.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: "#fff",
-                  border: "1px solid #e5e5e5",
-                  borderRadius: "12px",
-                }}
-              />
-              <Legend verticalAlign="bottom" height={36} iconType="circle" />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        <DashboardCategoriesChart data={categoryData} />
       </div>
     </div>
   );

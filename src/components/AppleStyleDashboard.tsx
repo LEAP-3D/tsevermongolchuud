@@ -11,12 +11,12 @@ import {
   Ban,
   Zap,
 } from "lucide-react";
-import DashboardTab from "./dashboard/DashboardTab";
-import AiAnalysisTab from "./dashboard/AiAnalysisTab";
-import BlockingTab from "./dashboard/BlockingTab";
-import TimeLimitsTab from "./dashboard/TimeLimitsTab";
-import SettingsTab from "./dashboard/SettingsTab";
-import ChildrenTab from "./dashboard/ChildrenTab";
+import DashboardTab from "./DashboardTab";
+import AiAnalysisTab from "./AiAnalysisTab";
+import BlockingTab from "./BlockingTab";
+import TimeLimitsTab from "./TimeLimitsTab";
+import SettingsTab from "./SettingsTab";
+import ChildrenTab from "./ChildrenTab";
 
 export default function AppleStyleDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");

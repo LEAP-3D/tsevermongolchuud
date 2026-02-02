@@ -2,8 +2,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import StatsCards from "@/components/dashboard/statistics/StatsCards";
-import StatsCharts from "@/components/dashboard/statistics/StatsCharts";
+import StatsCards from "./StatsCards";
+import StatsCharts from "./StatsCharts";
 
 type UsageStats = {
   date: string;
