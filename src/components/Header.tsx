@@ -5,13 +5,13 @@ import Image from "next/image";
 import { signOut } from "next-auth/react";
 import { LogOutIcon } from "lucide-react";
 
-interface HeaderProps {
+type HeaderProps = {
   user: {
     name?: string | null;
     email?: string | null;
     image?: string | null;
   };
-}
+};
 
 export default function Header({ user }: HeaderProps) {
   return (
