@@ -9,7 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { ArrowUpRight } from "lucide-react";
+import { TrendingUp, Clock } from "lucide-react";
 
 type UsageData = {
   day: string;
@@ -24,14 +24,23 @@ export default function DashboardUsageChart({
   data,
 }: DashboardUsageChartProps) {
   return (
-    <div className="bg-white/75 rounded-3xl p-6 border border-white/80 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.5)] backdrop-blur">
+    <div className="bg-white rounded-2xl p-7 border border-slate-200 shadow-soft">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-slate-900">Usage Timeline</h3>
-        <button className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1 font-medium">
-          Details <ArrowUpRight className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
+            <Clock className="w-6 h-6 text-white" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-slate-900">Weekly Screen Time</h3>
+            <p className="text-sm text-slate-600">Daily usage patterns</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-secondary-100 rounded-xl">
+          <TrendingUp className="w-4 h-4 text-secondary-700" />
+          <span className="text-sm font-bold text-secondary-700">Healthy trend</span>
+        </div>
       </div>
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data}>
           <CartesianGrid
             strokeDasharray="3 3"
@@ -40,25 +49,44 @@ export default function DashboardUsageChart({
           />
           <XAxis
             dataKey="day"
-            stroke="#94a3b8"
+            stroke="#64748b"
             axisLine={false}
             tickLine={false}
+            style={{ fontSize: '14px', fontWeight: 600 }}
           />
-          <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} />
+          <YAxis 
+            stroke="#64748b" 
+            axisLine={false} 
+            tickLine={false}
+            style={{ fontSize: '14px', fontWeight: 600 }}
+          />
           <Tooltip
             contentStyle={{
-              background: "#fff",
-              border: "1px solid #e2e8f0",
+              background: "#ffffff",
+              border: "2px solid #e2e8f0",
               borderRadius: "16px",
+              padding: "12px 16px",
+              boxShadow: "0 4px 16px 0 rgba(0, 0, 0, 0.08)",
+            }}
+            labelStyle={{
+              fontSize: "14px",
+              fontWeight: 700,
+              color: "#0f172a",
+              marginBottom: "4px",
+            }}
+            itemStyle={{
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#3b82f6",
             }}
           />
           <Line
             type="monotone"
             dataKey="hours"
-            stroke="#0f172a"
-            strokeWidth={2.5}
-            dot={{ fill: "#0f172a", r: 4, strokeWidth: 0 }}
-            activeDot={{ r: 6, fill: "#0f172a", strokeWidth: 0 }}
+            stroke="#3b82f6"
+            strokeWidth={3}
+            dot={{ fill: "#3b82f6", r: 5, strokeWidth: 0 }}
+            activeDot={{ r: 7, fill: "#3b82f6", strokeWidth: 0 }}
           />
         </LineChart>
       </ResponsiveContainer>

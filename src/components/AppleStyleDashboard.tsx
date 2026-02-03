@@ -9,7 +9,9 @@ import {
   BarChart3,
   Brain,
   Ban,
-  Zap,
+  Sparkles,
+  ChevronLeft,
+  Menu,
 } from "lucide-react";
 import DashboardTab from "./DashboardTab";
 import AiAnalysisTab from "./AiAnalysisTab";
@@ -20,6 +22,7 @@ import ChildrenTab from "./ChildrenTab";
 
 export default function AppleStyleDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -40,79 +43,103 @@ export default function AppleStyleDashboard() {
     }
   };
 
+  const navItems = [
+    { id: "dashboard", icon: BarChart3, label: "Dashboard", color: "primary" },
+    { id: "ai-analysis", icon: Brain, label: "AI Assistant", color: "secondary" },
+    { id: "blocking", icon: Ban, label: "Content Blocking", color: "danger" },
+    { id: "time-limits", icon: Clock, label: "Screen Time", color: "accent" },
+    { id: "children", icon: Users, label: "Family", color: "primary" },
+    { id: "settings", icon: Settings, label: "Settings", color: "primary" },
+  ];
+
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f6f1eb] text-slate-900">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 -right-16 h-72 w-72 rounded-full bg-amber-200/70 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-1/3 -left-20 h-80 w-80 rounded-full bg-sky-200/60 blur-3xl"
-      />
-      <div className="relative flex min-h-screen gap-6 px-6 py-6 lg:px-10">
-        <div className="w-72 shrink-0 rounded-3xl border border-white/70 bg-white/70 p-5 shadow-[0_20px_60px_-40px_rgba(10,15,20,0.6)] backdrop-blur">
-          <div className="flex items-center gap-3 px-3 py-4 mb-6 rounded-2xl bg-white/80 border border-white/60 shadow-sm">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-900 via-slate-700 to-slate-500 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                Family safety
-              </p>
-              <h1 className="text-lg font-semibold text-slate-900">
-                ParentGuard
-              </h1>
-            </div>
-          </div>
-
-          <nav className="space-y-2">
-            {[
-              { id: "dashboard", icon: BarChart3, label: "Dashboard" },
-              { id: "ai-analysis", icon: Brain, label: "AI Assistant" },
-              { id: "blocking", icon: Ban, label: "Blocking" },
-              { id: "time-limits", icon: Clock, label: "Time Limits" },
-              { id: "children", icon: Users, label: "Children" },
-              { id: "settings", icon: Settings, label: "Settings" },
-            ].map((item) => (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+      <div className="flex">
+        {/* Sidebar */}
+        <aside
+          className={`${
+            sidebarCollapsed ? "w-20" : "w-72"
+          } bg-white border-r border-slate-200/80 min-h-screen transition-all duration-300 ease-in-out shadow-sm`}
+        >
+          <div className="sticky top-0">
+            {/* Logo & Header */}
+            <div className="flex items-center justify-between px-5 py-6 border-b border-slate-100">
+              {!sidebarCollapsed && (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
+                    <Shield className="w-6 h-6 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+                      ParentGuard
+                    </h1>
+                    <p className="text-xs text-slate-500">Family Protection</p>
+                  </div>
+                </div>
+              )}
               <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium transition-all ${
-                  activeTab === item.id
-                    ? "bg-slate-900 text-white shadow-md shadow-slate-900/20"
-                    : "text-slate-600 hover:bg-white/80 hover:text-slate-900"
-                }`}
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <item.icon className="w-4 h-4" />
-                <span>{item.label}</span>
+                {sidebarCollapsed ? (
+                  <Menu className="w-5 h-5 text-slate-600" />
+                ) : (
+                  <ChevronLeft className="w-5 h-5 text-slate-600" />
+                )}
               </button>
-            ))}
-          </nav>
-
-          <div className="mt-8 px-4 py-4 rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white via-white to-amber-50 shadow-sm">
-            <div className="flex items-start gap-3 mb-2">
-              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-900">
-                  Upgrade to Pro
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Unlock family insights
-                </p>
-              </div>
             </div>
-            <button className="w-full mt-3 px-3 py-2 bg-slate-900 text-white text-xs font-medium rounded-xl hover:bg-slate-800 transition-colors">
-              Learn More
-            </button>
-          </div>
-        </div>
 
-        <div className="flex-1">
-          <div className="max-w-6xl mx-auto">{renderContent()}</div>
-        </div>
+            {/* Navigation */}
+            <nav className="p-4 space-y-1.5">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center ${
+                    sidebarCollapsed ? "justify-center px-3" : "gap-3 px-4"
+                  } py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    activeTab === item.id
+                      ? "bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-soft"
+                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                  title={sidebarCollapsed ? item.label : undefined}
+                >
+                  <item.icon className="w-5 h-5" strokeWidth={2} />
+                  {!sidebarCollapsed && <span>{item.label}</span>}
+                </button>
+              ))}
+            </nav>
+
+            {/* Upgrade Card */}
+            {!sidebarCollapsed && (
+              <div className="m-4 mt-6 p-4 bg-gradient-to-br from-primary-50 to-secondary-50 rounded-2xl border border-primary-100">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-soft">
+                    <Sparkles className="w-4 h-4 text-primary-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      Unlock Premium
+                    </p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Advanced AI monitoring & custom alerts
+                    </p>
+                  </div>
+                </div>
+                <button className="w-full px-4 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-xs font-semibold rounded-lg hover:from-primary-600 hover:to-primary-700 transition-all shadow-sm hover:shadow-md">
+                  Upgrade Now
+                </button>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto p-8">
+            <div className="animate-fade-in">{renderContent()}</div>
+          </div>
+        </main>
       </div>
     </div>
   );
