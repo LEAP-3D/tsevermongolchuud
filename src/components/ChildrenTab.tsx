@@ -32,7 +32,7 @@ export default function ChildrenTab() {
   const [copiedPin, setCopiedPin] = useState<number | null>(null);
 
   const handleCopyPin = (childId: number, pin: string) => {
-    navigator.clipboard.writeText(pin);
+    void navigator.clipboard.writeText(pin);
     setCopiedPin(childId);
     setTimeout(() => setCopiedPin(null), 2000);
   };
@@ -46,7 +46,7 @@ export default function ChildrenTab() {
             Family Members
           </h1>
           <p className="text-lg text-slate-600">
-            Manage and monitor your children's digital activity
+            Manage and monitor your children`s digital activity
           </p>
         </div>
         <button
@@ -67,7 +67,9 @@ export default function ChildrenTab() {
           >
             {/* Header Section */}
             <div className="flex items-start gap-4 mb-6">
-              <div className={`w-16 h-16 bg-gradient-to-br ${child.color} rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-soft`}>
+              <div
+                className={`w-16 h-16 bg-gradient-to-br ${child.color} rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-soft`}
+              >
                 {child.avatar}
               </div>
               <div className="flex-1">
@@ -90,30 +92,44 @@ export default function ChildrenTab() {
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-4 border border-slate-200">
                 <p className="text-xs text-slate-600 font-semibold mb-1.5 uppercase tracking-wide">
-                  Today's Usage
+                  Today`s Usage
                 </p>
                 <p className="text-2xl font-bold text-slate-900">
                   {child.todayUsage}
                 </p>
               </div>
-              <div className={`bg-gradient-to-br ${
-                child.safetyScore === "Excellent" 
-                  ? "from-secondary-50 to-secondary-100/50 border-secondary-200" 
-                  : "from-primary-50 to-primary-100/50 border-primary-200"
-              } rounded-xl p-4 border`}>
+              <div
+                className={`bg-gradient-to-br ${
+                  child.safetyScore === "Excellent"
+                    ? "from-secondary-50 to-secondary-100/50 border-secondary-200"
+                    : "from-primary-50 to-primary-100/50 border-primary-200"
+                } rounded-xl p-4 border`}
+              >
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <Shield className={`w-3.5 h-3.5 ${
-                    child.safetyScore === "Excellent" ? "text-secondary-600" : "text-primary-600"
-                  }`} />
-                  <p className={`text-xs font-semibold uppercase tracking-wide ${
-                    child.safetyScore === "Excellent" ? "text-secondary-600" : "text-primary-600"
-                  }`}>
+                  <Shield
+                    className={`w-3.5 h-3.5 ${
+                      child.safetyScore === "Excellent"
+                        ? "text-secondary-600"
+                        : "text-primary-600"
+                    }`}
+                  />
+                  <p
+                    className={`text-xs font-semibold uppercase tracking-wide ${
+                      child.safetyScore === "Excellent"
+                        ? "text-secondary-600"
+                        : "text-primary-600"
+                    }`}
+                  >
                     Safety Score
                   </p>
                 </div>
-                <p className={`text-2xl font-bold ${
-                  child.safetyScore === "Excellent" ? "text-secondary-700" : "text-primary-700"
-                }`}>
+                <p
+                  className={`text-2xl font-bold ${
+                    child.safetyScore === "Excellent"
+                      ? "text-secondary-700"
+                      : "text-primary-700"
+                  }`}
+                >
                   {child.safetyScore}
                 </p>
               </div>
@@ -130,7 +146,7 @@ export default function ChildrenTab() {
                     {child.pin}
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => handleCopyPin(child.id, child.pin)}
                   className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft hover:shadow-soft-lg"
                 >
@@ -138,7 +154,9 @@ export default function ChildrenTab() {
                 </button>
               </div>
               <p className="text-xs text-primary-700 font-medium">
-                {copiedPin === child.id ? "PIN copied to clipboard!" : "Share with your child to access their device"}
+                {copiedPin === child.id
+                  ? "PIN copied to clipboard!"
+                  : "Share with your child to access their device"}
               </p>
             </div>
 
@@ -147,7 +165,7 @@ export default function ChildrenTab() {
               <button className="flex-1 px-4 py-3 bg-slate-100 text-slate-900 text-sm font-semibold rounded-xl hover:bg-slate-200 transition-all">
                 View Activity
               </button>
-              <button className="flex-1 px-4 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm font-semibold rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft">
+              <button className="flex-1 px-4 py-3 bg-linear-to-r from-primary-500 to-primary-600 text-white text-sm font-semibold rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft">
                 Settings
               </button>
             </div>

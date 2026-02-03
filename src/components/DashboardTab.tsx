@@ -35,7 +35,7 @@ export default function DashboardTab() {
             Dashboard
           </h1>
           <p className="text-lg text-slate-600">
-            Monitor your family's internet activity and safety
+            Monitor your family`s internet activity and safety
           </p>
         </div>
         <div className="flex items-center gap-1 bg-white rounded-xl p-1.5 shadow-soft border border-slate-200">
@@ -64,14 +64,14 @@ export default function DashboardTab() {
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-5 h-5 text-primary-600" />
                 <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-                  Today's Usage
+                  Today`s Usage
                 </p>
               </div>
               
               <div className="space-y-4 mt-4">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                    <div className="w-10 h-10 bg-linear-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm">
                       E
                     </div>
                     <div className="flex-1">
@@ -87,7 +87,7 @@ export default function DashboardTab() {
                 
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                    <div className="w-10 h-10 bg-linear-to-br from-secondary-400 to-secondary-600 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm">
                       O
                     </div>
                     <div className="flex-1">
@@ -129,7 +129,7 @@ export default function DashboardTab() {
                 </span>
               </div>
             </div>
-            <div className="w-14 h-14 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-2xl flex items-center justify-center shadow-soft">
+            <div className="w-14 h-14 bg-linear-to-br from-secondary-400 to-secondary-600 rounded-2xl flex items-center justify-center shadow-soft">
               <Shield className="w-7 h-7 text-white" strokeWidth={2.5} />
             </div>
           </div>
@@ -155,7 +155,7 @@ export default function DashboardTab() {
                 </span>
               </div>
             </div>
-            <div className="w-14 h-14 bg-gradient-to-br from-danger-400 to-danger-600 rounded-2xl flex items-center justify-center shadow-soft">
+            <div className="w-14 h-14 bg-linear-to-br from-danger-400 to-danger-600 rounded-2xl flex items-center justify-center shadow-soft">
               <Ban className="w-7 h-7 text-white" strokeWidth={2.5} />
             </div>
           </div>

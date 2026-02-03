@@ -70,11 +70,36 @@ export default function BlockingTab() {
         </div>
         <div className="divide-y divide-slate-100">
           {[
-            { name: "Adult Content", enabled: true, color: "danger", description: "Mature and explicit content" },
-            { name: "Violence & Weapons", enabled: true, color: "danger", description: "Violent content and weapon-related sites" },
-            { name: "Gambling", enabled: true, color: "accent", description: "Online betting and casino sites" },
-            { name: "Social Media", enabled: false, color: "primary", description: "Social networking platforms" },
-            { name: "Gaming", enabled: false, color: "secondary", description: "Online gaming websites" },
+            {
+              name: "Adult Content",
+              enabled: true,
+              color: "danger",
+              description: "Mature and explicit content",
+            },
+            {
+              name: "Violence & Weapons",
+              enabled: true,
+              color: "danger",
+              description: "Violent content and weapon-related sites",
+            },
+            {
+              name: "Gambling",
+              enabled: true,
+              color: "accent",
+              description: "Online betting and casino sites",
+            },
+            {
+              name: "Social Media",
+              enabled: false,
+              color: "primary",
+              description: "Social networking platforms",
+            },
+            {
+              name: "Gaming",
+              enabled: false,
+              color: "secondary",
+              description: "Online gaming websites",
+            },
           ].map((category, idx) => (
             <div
               key={idx}
@@ -83,8 +108,8 @@ export default function BlockingTab() {
               <div className="flex items-center gap-4">
                 <div
                   className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    category.enabled 
-                      ? `bg-${category.color}-100` 
+                    category.enabled
+                      ? `bg-${category.color}-100`
                       : "bg-slate-100"
                   }`}
                 >
@@ -128,7 +153,7 @@ export default function BlockingTab() {
               Add Custom Website Block
             </h3>
             <p className="text-sm text-slate-600 mt-0.5">
-              Block specific websites that aren't covered by categories
+              Block specific websites that aren`t covered by categories
             </p>
           </div>
         </div>
