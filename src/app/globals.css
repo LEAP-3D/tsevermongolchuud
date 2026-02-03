@@ -1,9 +1,15 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  /* This maps the utility 'border-border' to your CSS variable */
+  --color-border: var(--border-color);
+
+  /* Adding shadows mentioned in your utilities */
+  --shadow-soft-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
 
 :root {
-  /* Light mode - Default */
+  /* Light mode */
   --background: #f8fafc;
   --foreground: #0f172a;
   --card-background: #ffffff;
@@ -30,6 +36,7 @@
 
 @layer base {
   * {
+    /* Now that 'border' is defined in @theme, this will work */
     @apply border-border;
   }
 

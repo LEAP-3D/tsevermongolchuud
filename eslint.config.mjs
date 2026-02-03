@@ -1,18 +1,10 @@
-<<<<<<< HEAD
-import { defineConfig, globalIgnores } from "eslint/config";
-=======
->>>>>>> 7088df1 (Test)
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import unusedImports from "eslint-plugin-unused-imports";
 
-<<<<<<< HEAD
-const eslintConfig = defineConfig([
-=======
 const eslintConfig = [
->>>>>>> 7088df1 (Test)
   ...nextVitals,
   ...nextTs,
 
@@ -75,14 +67,9 @@ const eslintConfig = [
     },
   },
 
-<<<<<<< HEAD
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
-]);
-=======
   {
     ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
   },
 ];
->>>>>>> 7088df1 (Test)
 
 export default eslintConfig;
