@@ -58,15 +58,15 @@ export default function AiAnalysisTab() {
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col max-w-5xl mx-auto w-full">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">
+        <h1 className="font-display text-4xl text-slate-900 mb-2">
           AI Assistant
         </h1>
-        <p className="text-base text-gray-500">
-          Ask questions about your children's online safety and activity
+        <p className="text-base text-slate-500">
+          Ask questions about your children`s online safety and activity
         </p>
       </div>
 
-      <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+      <div className="flex-1 bg-white/75 rounded-3xl border border-white/80 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.6)] flex flex-col overflow-hidden backdrop-blur">
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {chatMessages.map((message) => (
             <div
@@ -77,7 +77,7 @@ export default function AiAnalysisTab() {
                 className={`flex gap-3 max-w-[80%] ${message.sender === "user" ? "flex-row-reverse" : "flex-row"}`}
               >
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${message.sender === "user" ? "bg-indigo-600" : "bg-gradient-to-br from-violet-500 to-fuchsia-500"}`}
+                  className={`w-8 h-8 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${message.sender === "user" ? "bg-slate-900" : "bg-gradient-to-br from-amber-500 to-rose-500"}`}
                 >
                   {message.sender === "user" ? (
                     <Users className="w-4 h-4 text-white" />
@@ -86,7 +86,7 @@ export default function AiAnalysisTab() {
                   )}
                 </div>
                 <div
-                  className={`rounded-2xl px-5 py-3.5 shadow-sm ${message.sender === "user" ? "bg-indigo-600 text-white" : "bg-white border border-gray-100 text-gray-700"}`}
+                  className={`rounded-2xl px-5 py-3.5 shadow-sm ${message.sender === "user" ? "bg-slate-900 text-white" : "bg-white border border-white/70 text-slate-700"}`}
                 >
                   <p className="text-sm leading-relaxed">{message.text}</p>
                 </div>
@@ -95,8 +95,8 @@ export default function AiAnalysisTab() {
           ))}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-          <p className="text-xs font-medium text-gray-500 mb-3 uppercase tracking-wider">
+        <div className="px-6 py-4 border-t border-white/60 bg-white/50">
+          <p className="text-xs font-medium text-slate-500 mb-3 uppercase tracking-wider">
             Suggested actions
           </p>
           <div className="flex flex-wrap gap-2.5">
@@ -109,7 +109,7 @@ export default function AiAnalysisTab() {
               <button
                 key={idx}
                 onClick={() => sendMessage(question)}
-                className="px-3.5 py-2 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm"
+                className="px-3.5 py-2 bg-white border border-white/80 rounded-full text-xs font-medium text-slate-600 hover:border-amber-200 hover:text-slate-900 hover:bg-amber-50 transition-all shadow-sm"
               >
                 {question}
               </button>
@@ -117,7 +117,7 @@ export default function AiAnalysisTab() {
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="p-4 border-t border-white/60 bg-white/70">
           <div className="flex gap-2">
             <input
               type="text"
@@ -125,12 +125,12 @@ export default function AiAnalysisTab() {
               onChange={(e) => setChatInput(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Ask about safety, screen time, or specific activities..."
-              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all"
+              className="flex-1 px-4 py-3 bg-white border border-white/80 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 text-sm transition-all"
             />
             <button
               onClick={() => sendMessage()}
               disabled={!chatInput.trim()}
-              className="px-5 py-3 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-5 py-3 bg-slate-900 text-white font-medium rounded-2xl hover:bg-slate-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed flex items-center gap-2"
             >
               <span>Send</span>
               <ArrowUpRight className="w-4 h-4 stroke-[2.5]" />
@@ -139,16 +139,16 @@ export default function AiAnalysisTab() {
         </div>
       </div>
 
-      <div className="mt-6 bg-gradient-to-r from-violet-50 to-fuchsia-50 rounded-2xl p-5 border border-violet-100/50 shadow-sm">
+      <div className="mt-6 bg-gradient-to-r from-amber-50 to-rose-50 rounded-3xl p-5 border border-amber-100/60 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border border-violet-100">
-            <Sparkles className="w-4 h-4 text-violet-600" />
+          <div className="w-8 h-8 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border border-amber-100">
+            <Sparkles className="w-4 h-4 text-amber-600" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-0.5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-0.5">
               AI-Powered Insights
             </h3>
-            <p className="text-sm text-gray-600 leading-relaxed">
+            <p className="text-sm text-slate-600 leading-relaxed">
               This AI assistant analyzes your children`s online behavior in
               real-time and provides personalized recommendations to keep them
               safe.

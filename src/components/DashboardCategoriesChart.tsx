@@ -23,8 +23,10 @@ export default function DashboardCategoriesChart({
   data,
 }: DashboardCategoriesChartProps) {
   return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-200/80">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">Categories</h3>
+    <div className="bg-white/75 rounded-3xl p-6 border border-white/80 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.5)] backdrop-blur">
+      <h3 className="text-lg font-semibold text-slate-900 mb-6">
+        Categories
+      </h3>
       <ResponsiveContainer width="100%" height={240}>
         <PieChart>
           <Pie
@@ -43,8 +45,8 @@ export default function DashboardCategoriesChart({
           <Tooltip
             contentStyle={{
               background: "#fff",
-              border: "1px solid #e5e5e5",
-              borderRadius: "12px",
+              border: "1px solid #e2e8f0",
+              borderRadius: "16px",
             }}
           />
           <Legend verticalAlign="bottom" height={36} iconType="circle" />
