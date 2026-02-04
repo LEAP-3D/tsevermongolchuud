@@ -53,7 +53,7 @@ export default function AppleStyleDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-blue-50/30 to-slate-50">
       <div className="flex">
         {/* Sidebar */}
         <aside
@@ -66,7 +66,7 @@ export default function AppleStyleDashboard() {
             <div className="flex items-center justify-between px-5 py-6 border-b border-slate-100">
               {!sidebarCollapsed && (
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
+                  <div className="w-10 h-10 bg-linear-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
                     <Shield className="w-6 h-6 text-white" strokeWidth={2.5} />
                   </div>
                   <div>
@@ -99,7 +99,7 @@ export default function AppleStyleDashboard() {
                     sidebarCollapsed ? "justify-center px-3" : "gap-3 px-4"
                   } py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                     activeTab === item.id
-                      ? "bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-soft"
+                      ? "bg-linear-to-r from-primary-500 to-primary-600 text-white shadow-soft"
                       : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                   title={sidebarCollapsed ? item.label : undefined}
@@ -112,7 +112,7 @@ export default function AppleStyleDashboard() {
 
             {/* Upgrade Card */}
             {!sidebarCollapsed && (
-              <div className="m-4 mt-6 p-4 bg-gradient-to-br from-primary-50 to-secondary-50 rounded-2xl border border-primary-100">
+              <div className="m-4 mt-6 p-4 bg-linear-to-br from-primary-50 to-secondary-50 rounded-2xl border border-primary-100">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="p-2 bg-white rounded-lg shadow-soft">
                     <Sparkles className="w-4 h-4 text-primary-600" />
@@ -126,7 +126,7 @@ export default function AppleStyleDashboard() {
                     </p>
                   </div>
                 </div>
-                <button className="w-full px-4 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-xs font-semibold rounded-lg hover:from-primary-600 hover:to-primary-700 transition-all shadow-sm hover:shadow-md">
+                <button className="w-full px-4 py-2.5 bg-linear-to-r from-primary-500 to-primary-600 text-white text-xs font-semibold rounded-lg hover:from-primary-600 hover:to-primary-700 transition-all shadow-sm hover:shadow-md">
                   Upgrade Now
                 </button>
               </div>

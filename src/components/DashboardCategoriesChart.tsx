@@ -26,7 +26,7 @@ export default function DashboardCategoriesChart({
   return (
     <div className="bg-white rounded-2xl p-7 border border-slate-200 shadow-soft">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-12 h-12 bg-gradient-to-br from-secondary-500 to-secondary-600 rounded-xl flex items-center justify-center shadow-soft">
+        <div className="w-12 h-12 bg-linear-to-br from-secondary-500 to-secondary-600 rounded-xl flex items-center justify-center shadow-soft">
           <PieChartIcon className="w-6 h-6 text-white" strokeWidth={2.5} />
         </div>
         <div>

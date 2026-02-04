@@ -51,7 +51,7 @@ export default function ChildrenTab() {
         </div>
         <button
           onClick={() => setShowAddChild(true)}
-          className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm font-semibold rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft hover:shadow-soft-lg flex items-center gap-2"
+          className="px-6 py-3 bg-linear-to-r from-primary-500 to-primary-600 text-white text-sm font-semibold rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft hover:shadow-soft-lg flex items-center gap-2"
         >
           <Plus className="w-5 h-5" />
           Add Family Member
@@ -68,7 +68,7 @@ export default function ChildrenTab() {
             {/* Header Section */}
             <div className="flex items-start gap-4 mb-6">
               <div
-                className={`w-16 h-16 bg-gradient-to-br ${child.color} rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-soft`}
+                className={`w-16 h-16 bg-linear-to-br ${child.color} rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-soft`}
               >
                 {child.avatar}
               </div>
@@ -90,7 +90,7 @@ export default function ChildrenTab() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-4 border border-slate-200">
+              <div className="bg-linear-to-br from-slate-50 to-slate-100/50 rounded-xl p-4 border border-slate-200">
                 <p className="text-xs text-slate-600 font-semibold mb-1.5 uppercase tracking-wide">
                   Today`s Usage
                 </p>
@@ -99,7 +99,7 @@ export default function ChildrenTab() {
                 </p>
               </div>
               <div
-                className={`bg-gradient-to-br ${
+                className={`bg-linear-to-br ${
                   child.safetyScore === "Excellent"
                     ? "from-secondary-50 to-secondary-100/50 border-secondary-200"
                     : "from-primary-50 to-primary-100/50 border-primary-200"
@@ -136,7 +136,7 @@ export default function ChildrenTab() {
             </div>
 
             {/* PIN Section */}
-            <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 rounded-xl p-5 border border-primary-200 mb-5">
+            <div className="bg-linear-to-br from-primary-50 to-primary-100/50 rounded-xl p-5 border border-primary-200 mb-5">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-xs font-bold text-primary-700 mb-2 uppercase tracking-wide">
@@ -148,7 +148,7 @@ export default function ChildrenTab() {
                 </div>
                 <button
                   onClick={() => handleCopyPin(child.id, child.pin)}
-                  className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft hover:shadow-soft-lg"
+                  className="w-12 h-12 bg-linear-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft hover:shadow-soft-lg"
                 >
                   <Copy className="w-5 h-5 text-white" />
                 </button>

@@ -17,7 +17,7 @@ export default function BlockingTab() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-danger-50 to-danger-100/50 rounded-2xl p-6 border border-danger-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
+        <div className="bg-linear-to-br from-danger-50 to-danger-100/50 rounded-2xl p-6 border border-danger-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-3">
@@ -31,13 +31,13 @@ export default function BlockingTab() {
                 Sites blocked automatically this week
               </p>
             </div>
-            <div className="w-14 h-14 bg-gradient-to-br from-danger-400 to-danger-600 rounded-2xl flex items-center justify-center shadow-soft">
+            <div className="w-14 h-14 bg-linear-to-br from-danger-400 to-danger-600 rounded-2xl flex items-center justify-center shadow-soft">
               <Ban className="w-7 h-7 text-white" strokeWidth={2.5} />
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 rounded-2xl p-6 border border-primary-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
+        <div className="bg-linear-to-br from-primary-50 to-primary-100/50 rounded-2xl p-6 border border-primary-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-3">
@@ -51,7 +51,7 @@ export default function BlockingTab() {
                 Content filters currently protecting your family
               </p>
             </div>
-            <div className="w-14 h-14 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl flex items-center justify-center shadow-soft">
+            <div className="w-14 h-14 bg-linear-to-br from-primary-400 to-primary-600 rounded-2xl flex items-center justify-center shadow-soft">
               <Shield className="w-7 h-7 text-white" strokeWidth={2.5} />
             </div>
           </div>
@@ -60,7 +60,7 @@ export default function BlockingTab() {
 
       {/* Category Blocking */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-soft overflow-hidden">
-        <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+        <div className="p-6 border-b border-slate-200 bg-linear-to-r from-slate-50 to-white">
           <h3 className="text-xl font-bold text-slate-900">
             Block by Category
           </h3>
@@ -143,7 +143,7 @@ export default function BlockingTab() {
       </div>
 
       {/* Add Custom Block */}
-      <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-8 border-2 border-dashed border-slate-300">
+      <div className="bg-linear-to-br from-slate-50 to-slate-100/50 rounded-2xl p-8 border-2 border-dashed border-slate-300">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-soft">
             <Globe className="w-6 h-6 text-slate-700" />
@@ -163,7 +163,7 @@ export default function BlockingTab() {
             placeholder="example.com"
             className="flex-1 px-5 py-4 bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all shadow-soft text-slate-900 placeholder:text-slate-400"
           />
-          <button className="px-6 py-4 bg-gradient-to-r from-slate-800 to-slate-900 text-white font-bold rounded-xl hover:from-slate-900 hover:to-black transition-all shadow-soft hover:shadow-soft-lg flex items-center gap-2">
+          <button className="px-6 py-4 bg-linear-to-r from-slate-800 to-slate-900 text-white font-bold rounded-xl hover:from-slate-900 hover:to-black transition-all shadow-soft hover:shadow-soft-lg flex items-center gap-2">
             <Plus className="w-5 h-5" />
             Block Site
           </button>

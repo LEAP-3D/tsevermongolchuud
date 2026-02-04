@@ -80,10 +80,10 @@ export default function AiAnalysisTab() {
                 className={`flex gap-3 max-w-[80%] ${message.sender === "user" ? "flex-row-reverse" : "flex-row"}`}
               >
                 <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-soft ${
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-soft ${
                     message.sender === "user" 
-                      ? "bg-gradient-to-br from-primary-500 to-primary-600" 
-                      : "bg-gradient-to-br from-secondary-400 to-secondary-600"
+                      ? "bg-linear-to-br from-primary-500 to-primary-600" 
+                      : "bg-linear-to-br from-secondary-400 to-secondary-600"
                   }`}
                 >
                   {message.sender === "user" ? (
@@ -95,8 +95,8 @@ export default function AiAnalysisTab() {
                 <div
                   className={`rounded-2xl px-5 py-4 shadow-soft ${
                     message.sender === "user" 
-                      ? "bg-gradient-to-br from-primary-500 to-primary-600 text-white" 
-                      : "bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 text-slate-900"
+                      ? "bg-linear-to-br from-primary-500 to-primary-600 text-white" 
+                      : "bg-linear-to-br from-slate-50 to-slate-100/50 border border-slate-200 text-slate-900"
                   }`}
                 >
                   <p className="text-sm leading-relaxed">{message.text}</p>
@@ -107,7 +107,7 @@ export default function AiAnalysisTab() {
         </div>
 
         {/* Suggested Actions */}
-        <div className="px-6 py-5 border-t border-slate-200 bg-gradient-to-br from-slate-50 to-white">
+        <div className="px-6 py-5 border-t border-slate-200 bg-linear-to-br from-slate-50 to-white">
           <div className="flex items-center gap-2 mb-3">
             <MessageCircle className="w-4 h-4 text-slate-600" />
             <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
@@ -146,7 +146,7 @@ export default function AiAnalysisTab() {
             <button
               onClick={() => sendMessage()}
               disabled={!chatInput.trim()}
-              className="px-6 py-4 bg-gradient-to-r from-primary-500 to-primary-600 text-white font-bold rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft hover:shadow-soft-lg disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-4 bg-linear-to-r from-primary-500 to-primary-600 text-white font-bold rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-soft hover:shadow-soft-lg disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed flex items-center gap-2"
             >
               <span>Send</span>
               <ArrowUpRight className="w-5 h-5" strokeWidth={2.5} />
@@ -156,9 +156,9 @@ export default function AiAnalysisTab() {
       </div>
 
       {/* Info Banner */}
-      <div className="mt-6 bg-gradient-to-br from-secondary-50 to-secondary-100/50 rounded-2xl p-6 border border-secondary-200 shadow-soft">
+      <div className="mt-6 bg-linear-to-br from-secondary-50 to-secondary-100/50 rounded-2xl p-6 border border-secondary-200 shadow-soft">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-soft">
+          <div className="w-12 h-12 bg-linear-to-br from-secondary-400 to-secondary-600 rounded-xl flex items-center justify-center shrink-0 shadow-soft">
             <Sparkles className="w-6 h-6 text-white" strokeWidth={2.5} />
           </div>
           <div>

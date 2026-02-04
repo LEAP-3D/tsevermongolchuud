@@ -45,7 +45,7 @@ export default function DashboardTab() {
               onClick={() => setTimeFilter(filter)}
               className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 timeFilter === filter
-                  ? "bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-sm"
+                  ? "bg-linear-to-r from-primary-500 to-primary-600 text-white shadow-sm"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
               }`}
             >
@@ -113,7 +113,7 @@ export default function DashboardTab() {
         </div>
 
         {/* Safety Score Card */}
-        <div className="bg-gradient-to-br from-secondary-50 to-secondary-100/50 rounded-2xl p-6 border border-secondary-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
+        <div className="bg-linear-to-br from-secondary-50 to-secondary-100/50 rounded-2xl p-6 border border-secondary-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-4">
@@ -139,7 +139,7 @@ export default function DashboardTab() {
         </div>
 
         {/* Blocked Sites Card */}
-        <div className="bg-gradient-to-br from-danger-50 to-danger-100/50 rounded-2xl p-6 border border-danger-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
+        <div className="bg-linear-to-br from-danger-50 to-danger-100/50 rounded-2xl p-6 border border-danger-200 shadow-soft hover:shadow-soft-lg transition-all duration-200">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-4">
