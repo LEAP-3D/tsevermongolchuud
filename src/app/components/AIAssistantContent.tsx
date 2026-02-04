@@ -22,26 +22,26 @@ export default function AIAssistantContent({
   onQuickQuestion
 }: AIAssistantContentProps) {
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col">
+    <div className="min-h-[calc(100vh-120px)] md:h-[calc(100vh-120px)] flex flex-col">
       <div className="mb-4">
-        <h1 className="text-4xl font-semibold text-gray-900 mb-1">AI Assistant</h1>
-        <p className="text-base text-gray-500">Ask questions about your children&apos;s online safety and activity</p>
+        <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-1">AI Assistant</h1>
+        <p className="text-sm md:text-base text-gray-500">Ask questions about your children&apos;s online safety and activity</p>
       </div>
 
       <div className="flex-1 bg-white rounded-2xl border border-gray-200/80 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
           {messages.map(message => (
             <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`flex gap-3 max-w-[80%] ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className={`flex gap-3 max-w-[90%] md:max-w-[80%] ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                     message.sender === 'user' ? 'bg-blue-500' : 'bg-gradient-to-br from-purple-500 to-pink-500'
                   }`}
                 >
                   {message.sender === 'user' ? (
-                    <Users className="w-5 h-5 text-white" />
+                    <Users className="w-4 h-4 md:w-5 md:h-5 text-white" />
                   ) : (
-                    <Brain className="w-5 h-5 text-white" />
+                    <Brain className="w-4 h-4 md:w-5 md:h-5 text-white" />
                   )}
                 </div>
 
@@ -57,7 +57,7 @@ export default function AIAssistantContent({
           ))}
         </div>
 
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50">
+        <div className="px-4 md:px-6 py-3 border-t border-gray-100 bg-gray-50">
           <p className="text-xs text-gray-500 mb-2">Quick questions:</p>
           <div className="flex flex-wrap gap-2">
             {[
@@ -78,7 +78,7 @@ export default function AIAssistantContent({
         </div>
 
         <div className="p-4 border-t border-gray-200">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={chatInput}
@@ -90,7 +90,7 @@ export default function AIAssistantContent({
             <button
               onClick={onSendMessage}
               disabled={!chatInput.trim()}
-              className="px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+              className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <span>Send</span>
               <ArrowUpRight className="w-4 h-4" />
@@ -101,8 +101,8 @@ export default function AIAssistantContent({
 
       <div className="mt-4 bg-purple-50 rounded-2xl p-4 border border-purple-100">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <Brain className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 md:w-10 md:h-10 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+            <Brain className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-1">AI-Powered Insights</h3>

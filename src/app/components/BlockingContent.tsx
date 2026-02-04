@@ -6,12 +6,12 @@ export default function BlockingContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-4xl font-semibold text-gray-900 mb-1">Content Blocking</h1>
-        <p className="text-base text-gray-500">Control what your children can access online</p>
+        <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-1">Content Blocking</h1>
+        <p className="text-sm md:text-base text-gray-500">Control what your children can access online</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-6 border border-gray-200/80">
+        <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Blocked Websites</h3>
             <span className="text-2xl font-bold text-red-600">37</span>
@@ -19,7 +19,7 @@ export default function BlockingContent() {
           <p className="text-sm text-gray-600">Sites automatically blocked this week</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 border border-gray-200/80">
+        <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Active Filters</h3>
             <span className="text-2xl font-bold text-blue-600">12</span>
@@ -28,8 +28,8 @@ export default function BlockingContent() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 border border-gray-200/80">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Block by Category</h3>
+      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Block by Category</h3>
         <div className="space-y-3">
           {[
             { name: 'Adult Content', enabled: true, color: 'red' },
@@ -38,7 +38,7 @@ export default function BlockingContent() {
             { name: 'Social Media', enabled: false, color: 'blue' },
             { name: 'Gaming', enabled: false, color: 'purple' }
           ].map((category, idx) => (
-            <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+            <div key={idx} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
               <div className="flex items-center gap-3">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -53,7 +53,7 @@ export default function BlockingContent() {
                 </div>
               </div>
               <button
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   category.enabled ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
@@ -64,15 +64,15 @@ export default function BlockingContent() {
         </div>
       </div>
 
-      <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Add Custom Website Block</h3>
-        <div className="flex gap-2">
+      <div className="bg-blue-50 rounded-2xl p-4 md:p-6 border border-blue-100">
+        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3">Add Custom Website Block</h3>
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
             placeholder="example.com"
             className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button className="px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors">
+          <button className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors">
             Block Site
           </button>
         </div>
