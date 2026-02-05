@@ -31,7 +31,10 @@
     ".next/dev/types/**/*.ts",
     "next.config.ts",
     "postcss.config.mjs",
-    "middleware.ts"
+    "middleware.ts",
+    "prisma.config.ts",
+    "auth.ts",
+    "prisma.ts"
   ],
   "exclude": ["node_modules"]
 }
