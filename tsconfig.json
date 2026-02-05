@@ -15,7 +15,7 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./*"]
     },
     "plugins": [
       {
@@ -25,16 +25,12 @@
   },
   "include": [
     "next-env.d.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx",
+    "**/*.ts",
+    "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "next.config.ts",
-    "postcss.config.mjs",
-    "middleware.ts",
-    "prisma.config.ts",
-    "auth.ts",
-    "prisma.ts"
+    "postcss.config.mjs"
   ],
   "exclude": ["node_modules"]
 }

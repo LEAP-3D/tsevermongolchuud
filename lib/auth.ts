@@ -1,57 +1,82 @@
-// lib/auth.ts
-import { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "@/lib/prisma";
-import crypto from "crypto";
+// import {
+//   type NextAuthOptions,
+//   type DefaultSession,
+//   type User as NextAuthUser,
+// } from "next-auth";
+// import GoogleProvider from "next-auth/providers/google";
+// import { PrismaAdapter } from "@auth/prisma-adapter";
+// import prisma from "@/lib/prisma";
+// import crypto from "crypto";
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+// // We use interface here only because TypeScript requires it for "Declaration Merging"
+// // to extend the existing NextAuth types.
+// declare module "next-auth" {
+//   interface Session {
+//     user: {
+//       id: string;
+//       apiKey: string;
+//     } & DefaultSession["user"];
+//   }
 
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
+//   interface User extends NextAuthUser {
+//     apiKey?: string | null;
+//   }
+// }
 
-  session: {
-    strategy: "database",
-  },
+// // Defining our logic types as 'type'
+// type SessionCallbackParams = {
+//   session: any;
+//   user: NextAuthUser & { id: string; apiKey?: string | null };
+// };
 
-  pages: {
-    signIn: "/auth/signin",
-  },
+// export const authOptions: NextAuthOptions = {
+//   // Casting to the specific type to satisfy ESLint Line 9
+//   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
 
-  callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        // user id
-        session.user.id = user.id;
+//   providers: [
+//     GoogleProvider({
+//       clientId: process.env.GOOGLE_CLIENT_ID!,
+//       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+//     }),
+//   ],
 
-        // API key шалгах
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { apiKey: true },
-        });
+//   session: {
+//     strategy: "database",
+//   },
 
-        // Хэрвээ API key байхгүй бол үүсгэнэ
-        if (!dbUser?.apiKey) {
-          const updated = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              apiKey: crypto.randomUUID(),
-            },
-            select: { apiKey: true },
-          });
+//   pages: {
+//     signIn: "/auth/signin",
+//   },
 
-          session.user.apiKey = updated.apiKey!;
-        } else {
-          session.user.apiKey = dbUser.apiKey;
-        }
-      }
+//   callbacks: {
+//     async session({ session, user }: SessionCallbackParams) {
+//       if (session.user) {
+//         // Line 30: Property 'id' is now recognized
+//         session.user.id = user.id;
 
-      return session;
-    },
-  },
-};
+//         const dbUser = await prisma.user.findUnique({
+//           where: { id: user.id },
+//           select: { apiKey: true },
+//         });
+
+//         if (!dbUser?.apiKey) {
+//           const updated = await prisma.user.update({
+//             where: { id: user.id },
+//             data: {
+//               apiKey: crypto.randomUUID(),
+//             },
+//             select: { apiKey: true },
+//           });
+
+//           // Line 48: Property 'apiKey' is now recognized
+//           session.user.apiKey = updated.apiKey!;
+//         } else {
+//           // Line 50: Property 'apiKey' is now recognized
+//           session.user.apiKey = dbUser.apiKey;
+//         }
+//       }
+
+//       return session;
+//     },
+//   },
+// };
