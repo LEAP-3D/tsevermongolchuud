@@ -14,6 +14,7 @@ export type ChildrenContentProps = {
   copiedPin: boolean;
   onCopyPin: () => void;
   onViewActivity: (childId: number) => void;
+  onCreatedChild: (child: Child) => void;
 };
 
 export default function ChildrenContent({
@@ -24,7 +25,8 @@ export default function ChildrenContent({
   generatedPin,
   copiedPin,
   onCopyPin,
-  onViewActivity
+  onViewActivity,
+  onCreatedChild
 }: ChildrenContentProps) {
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
 
@@ -145,6 +147,7 @@ export default function ChildrenContent({
           copiedPin={copiedPin}
           onClose={onCloseAddChild}
           onCopyPin={onCopyPin}
+          onCreated={onCreatedChild}
         />
       )}
 

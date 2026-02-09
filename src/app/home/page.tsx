@@ -94,7 +94,7 @@ export default function HomeDashboard() {
     { level: "Dangerous", count: 5, color: "#FF3B30" },
   ];
 
-  const children: Child[] = [
+  const [children, setChildren] = useState<Child[]>([
     {
       id: 1,
       name: "Emma",
@@ -111,7 +111,7 @@ export default function HomeDashboard() {
       pin: "5639",
       avatar: "O",
     },
-  ];
+  ]);
 
   const generatePin = () => {
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -127,6 +127,10 @@ export default function HomeDashboard() {
   const openAddChild = () => {
     setShowAddChild(true);
     generatePin();
+  };
+
+  const handleCreatedChild = (child: Child) => {
+    setChildren(prev => [child, ...prev]);
   };
 
   const handleViewActivity = (_childId: number) => {
@@ -171,6 +175,7 @@ export default function HomeDashboard() {
             copiedPin={copiedPin}
             onCopyPin={copyPin}
             onViewActivity={handleViewActivity}
+            onCreatedChild={handleCreatedChild}
           />
         );
       case "settings":

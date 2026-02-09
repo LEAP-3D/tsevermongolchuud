@@ -22,6 +22,7 @@ model User {
   updatedAt DateTime @updatedAt
   class     Class    @relation(fields: [classId], references: [id])
   classId   String
+  children  Child[]
 }
 
 model Class {
@@ -33,6 +34,18 @@ model Class {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   users     User[]
+}
+
+model Child {
+  id        Int      @id @default(autoincrement())
+  name      String
+  age       Int?
+  gender    String?
+  pin       String
+  parentId  String?
+  parent    User?    @relation(fields: [parentId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ClerkUser {

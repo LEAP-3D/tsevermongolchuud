@@ -1,15 +1,74 @@
 "use client";
 
+import { useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { Check, Copy, Plus, X } from 'lucide-react';
+import type { Child } from './types';
 
 export type AddChildModalProps = {
   generatedPin: string;
   copiedPin: boolean;
   onClose: () => void;
   onCopyPin: () => void;
+  onCreated: (child: Child) => void;
 };
 
-export default function AddChildModal({ generatedPin, copiedPin, onClose, onCopyPin }: AddChildModalProps) {
+export default function AddChildModal({
+  generatedPin,
+  copiedPin,
+  onClose,
+  onCopyPin,
+  onCreated
+}: AddChildModalProps) {
+  const { user } = useUser();
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleCreate = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError('Please enter a name.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/child', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmed,
+          pin: generatedPin,
+          parentId: user?.id ?? null
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create child.');
+      }
+
+      const data = await response.json();
+      const createdChild: Child = {
+        id: data.id,
+        name: data.name,
+        status: 'Active',
+        todayUsage: '0h 0m',
+        pin: data.pin ?? generatedPin,
+        avatar: data.name?.[0]?.toUpperCase() ?? 'C'
+      };
+
+      onCreated(createdChild);
+      onClose();
+    } catch (err) {
+      setError('Could not create child. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-3xl p-5 sm:p-8 max-w-md w-full border border-gray-200/80 shadow-2xl">
@@ -34,8 +93,11 @@ export default function AddChildModal({ generatedPin, copiedPin, onClose, onCopy
             <input
               type="text"
               placeholder="e.g., Emma, Oliver"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
               className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-base transition-all"
             />
+            {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
           </div>
 
           <div>
@@ -66,8 +128,12 @@ export default function AddChildModal({ generatedPin, copiedPin, onClose, onCopy
           </div>
         </div>
 
-        <button className="w-full mt-6 sm:mt-8 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3.5 sm:py-4 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all font-bold text-base shadow-sm">
-          Create Account
+        <button
+          onClick={handleCreate}
+          disabled={submitting}
+          className="w-full mt-6 sm:mt-8 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3.5 sm:py-4 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all font-bold text-base shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {submitting ? 'Creating...' : 'Create Account'}
         </button>
       </div>
     </div>

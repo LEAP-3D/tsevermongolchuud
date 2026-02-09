@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       age,
       gender,
       pin,
-      parentId,
+      parentId: parentId ?? null,
     },
   });
 
@@ -21,10 +21,10 @@ export async function POST(req: Request) {
 /* READ children of parent */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const parentId = Number(searchParams.get("parentId"));
+  const parentId = searchParams.get("parentId");
 
   const children = await prisma.child.findMany({
-    where: { parentId },
+    where: parentId ? { parentId } : undefined,
   });
 
   return NextResponse.json(children);
