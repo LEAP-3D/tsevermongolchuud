@@ -1,8 +1,45 @@
 "use client";
 
+import { useMemo, useState } from 'react';
 import { Ban } from 'lucide-react';
 
 export default function BlockingContent() {
+  const [categories, setCategories] = useState([
+    { id: 1, name: 'Adult Content', enabled: true, color: 'red' },
+    { id: 2, name: 'Violence & Weapons', enabled: true, color: 'red' },
+    { id: 3, name: 'Gambling', enabled: true, color: 'orange' },
+    { id: 4, name: 'Social Media', enabled: false, color: 'blue' },
+    { id: 5, name: 'Gaming', enabled: false, color: 'purple' }
+  ]);
+  const [customBlocks, setCustomBlocks] = useState<string[]>([]);
+  const [siteInput, setSiteInput] = useState('');
+
+  const activeFilters = useMemo(
+    () => categories.filter(category => category.enabled).length,
+    [categories]
+  );
+
+  const blockedSites = useMemo(
+    () => customBlocks.length + categories.filter(category => category.enabled).length * 5,
+    [customBlocks, categories]
+  );
+
+  const toggleCategory = (id: number) => {
+    setCategories(prev =>
+      prev.map(category =>
+        category.id === id ? { ...category, enabled: !category.enabled } : category
+      )
+    );
+  };
+
+  const addCustomBlock = () => {
+    const trimmed = siteInput.trim().toLowerCase();
+    if (!trimmed) return;
+    if (customBlocks.includes(trimmed)) return;
+    setCustomBlocks(prev => [trimmed, ...prev].slice(0, 5));
+    setSiteInput('');
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -14,7 +51,7 @@ export default function BlockingContent() {
         <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Blocked Websites</h3>
-            <span className="text-2xl font-bold text-red-600">37</span>
+            <span className="text-2xl font-bold text-red-600">{blockedSites}</span>
           </div>
           <p className="text-sm text-gray-600">Sites automatically blocked this week</p>
         </div>
@@ -22,7 +59,7 @@ export default function BlockingContent() {
         <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Active Filters</h3>
-            <span className="text-2xl font-bold text-blue-600">12</span>
+            <span className="text-2xl font-bold text-blue-600">{activeFilters}</span>
           </div>
           <p className="text-sm text-gray-600">Content filters currently active</p>
         </div>
@@ -31,14 +68,8 @@ export default function BlockingContent() {
       <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
         <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Block by Category</h3>
         <div className="space-y-3">
-          {[
-            { name: 'Adult Content', enabled: true, color: 'red' },
-            { name: 'Violence & Weapons', enabled: true, color: 'red' },
-            { name: 'Gambling', enabled: true, color: 'orange' },
-            { name: 'Social Media', enabled: false, color: 'blue' },
-            { name: 'Gaming', enabled: false, color: 'purple' }
-          ].map((category, idx) => (
-            <div key={idx} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
+          {categories.map(category => (
+            <div key={category.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
               <div className="flex items-center gap-3">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -53,6 +84,7 @@ export default function BlockingContent() {
                 </div>
               </div>
               <button
+                onClick={() => toggleCategory(category.id)}
                 className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   category.enabled ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
@@ -70,12 +102,29 @@ export default function BlockingContent() {
           <input
             type="text"
             placeholder="example.com"
+            value={siteInput}
+            onChange={event => setSiteInput(event.target.value)}
             className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors">
+          <button
+            onClick={addCustomBlock}
+            className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors"
+          >
             Block Site
           </button>
         </div>
+        {customBlocks.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {customBlocks.map(site => (
+              <span
+                key={site}
+                className="px-3 py-1.5 rounded-full bg-white border border-blue-200 text-xs text-blue-700"
+              >
+                {site}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

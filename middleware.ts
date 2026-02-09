@@ -1,24 +1,21 @@
-// middleware.ts
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-export default withAuth(
-  function middleware(req) {
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => !!token,
-    },
-    pages: {
-      signIn: "/auth/signin",
-    },
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/login(.*)",
+  "/sign(.*)",
+  "/api/webhooks/clerk(.*)",
+]);
+
+export default clerkMiddleware((auth, req) => {
+  if (!isPublicRoute(req)) {
+    auth().protect();
   }
-);
+});
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/api/dashboard/:path*",
+    "/((?!_next|.*\\..*).*)",
+    "/api/(.*)",
   ],
 };

@@ -34,3 +34,14 @@ model Class {
   updatedAt DateTime @updatedAt
   users     User[]
 }
+
+model ClerkUser {
+  id        String   @id @default(nanoid())
+  clerkId   String   @unique
+  email     String?
+  firstName String?
+  lastName  String?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

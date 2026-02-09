@@ -1,6 +1,7 @@
 "use client";
 
-import { Copy, Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Copy, Plus, X } from 'lucide-react';
 import type { Child } from './types';
 import AddChildModal from './AddChildModal';
 
@@ -12,6 +13,7 @@ export type ChildrenContentProps = {
   generatedPin: string;
   copiedPin: boolean;
   onCopyPin: () => void;
+  onViewActivity: (childId: number) => void;
 };
 
 export default function ChildrenContent({
@@ -21,8 +23,16 @@ export default function ChildrenContent({
   onCloseAddChild,
   generatedPin,
   copiedPin,
-  onCopyPin
+  onCopyPin,
+  onViewActivity
 }: ChildrenContentProps) {
+  const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
+
+  const selectedChild = useMemo(
+    () => childrenData.find(child => child.id === selectedChildId) ?? null,
+    [childrenData, selectedChildId]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -82,10 +92,16 @@ export default function ChildrenContent({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button className="px-4 py-2.5 bg-gray-100 text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
+              <button
+                onClick={() => onViewActivity(child.id)}
+                className="px-4 py-2.5 bg-gray-100 text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              >
                 View Activity
               </button>
-              <button className="px-4 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors">
+              <button
+                onClick={() => setSelectedChildId(child.id)}
+                className="px-4 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+              >
                 Settings
               </button>
             </div>
@@ -130,6 +146,87 @@ export default function ChildrenContent({
           onClose={onCloseAddChild}
           onCopyPin={onCopyPin}
         />
+      )}
+
+      {selectedChild && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-gray-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 text-white font-bold flex items-center justify-center">
+                  {selectedChild.avatar}
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">{selectedChild.name} Settings</h4>
+                  <p className="text-sm text-gray-500">Manage limits, filters, and device access</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedChildId(null)}
+                className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
+                <p className="text-xs text-gray-500 mb-1">Daily Screen Time</p>
+                <p className="text-lg font-semibold text-gray-900">3h 30m</p>
+                <p className="text-xs text-gray-500 mt-1">Current limit</p>
+              </div>
+              <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
+                <p className="text-xs text-gray-500 mb-1">Bedtime</p>
+                <p className="text-lg font-semibold text-gray-900">9:00 PM - 7:00 AM</p>
+                <p className="text-xs text-gray-500 mt-1">School nights</p>
+              </div>
+              <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
+                <p className="text-xs text-gray-500 mb-1">Blocked Categories</p>
+                <p className="text-lg font-semibold text-gray-900">Adult, Gambling</p>
+                <p className="text-xs text-gray-500 mt-1">2 active filters</p>
+              </div>
+              <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
+                <p className="text-xs text-gray-500 mb-1">Device Access</p>
+                <p className="text-lg font-semibold text-gray-900">iPhone · iPad</p>
+                <p className="text-xs text-gray-500 mt-1">2 devices linked</p>
+              </div>
+            </div>
+
+            <div className="px-5 pb-5">
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
+                <div className="grid grid-cols-3 gap-0 bg-gray-50 text-xs font-semibold text-gray-500 px-4 py-2">
+                  <div>Setting</div>
+                  <div>Value</div>
+                  <div>Status</div>
+                </div>
+                {[
+                  { label: 'YouTube', value: '1h 30m', status: 'Limit' },
+                  { label: 'Games', value: '2h', status: 'Limit' },
+                  { label: 'Social Media', value: 'Blocked', status: 'Blocked' }
+                ].map(row => (
+                  <div key={row.label} className="grid grid-cols-3 gap-0 px-4 py-3 text-sm text-gray-700 border-t border-gray-100">
+                    <div className="font-medium text-gray-900">{row.label}</div>
+                    <div>{row.value}</div>
+                    <div className="text-gray-500">{row.status}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
+                <button
+                  onClick={() => setSelectedChildId(null)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <button className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600">
+                  Manage Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

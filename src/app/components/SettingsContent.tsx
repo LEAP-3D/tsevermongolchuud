@@ -1,5 +1,7 @@
 "use client";
 
+import { SignOutButton } from "@clerk/nextjs";
+
 export default function SettingsContent() {
   return (
     <div className="space-y-6">
@@ -61,6 +63,16 @@ export default function SettingsContent() {
         <button className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors">
           Contact Support
         </button>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3">Account</h3>
+        <p className="text-sm text-gray-500 mb-4">Sign out of your account on this device.</p>
+        <SignOutButton redirectUrl="/login">
+          <button className="w-full sm:w-auto px-6 py-3 bg-white text-blue-600 font-medium rounded-xl border border-blue-200 hover:bg-blue-50 transition-colors">
+            Log Out
+          </button>
+        </SignOutButton>
       </div>
     </div>
   );
