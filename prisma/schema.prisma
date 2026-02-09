@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,48 +7,122 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(nanoid())
+  id        Int      @id @default(autoincrement())
   email     String   @unique
+  password  String
   name      String?
-  password  String?
-  image     String
+  verified  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  class     Class    @relation(fields: [classId], references: [id])
-  classId   String
-  children  Child[]
+  Child     Child[]
 }
 
-model Class {
-  id        String   @id @default(nanoid())
-  email     String   @unique
-  name      String?
-  password  String?
-  image     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
+model Alert {
+  id        Int       @id @default(autoincrement())
+  childId   Int
+  type      AlertType
+  message   String
+  isSent    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  Child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+}
+
+model CategoryCatalog {
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @unique
+  ChildCategorySetting ChildCategorySetting[]
+  DailyUsage           DailyUsage[]
 }
 
 model Child {
-  id        Int      @id @default(autoincrement())
-  name      String
-  age       Int?
-  gender    String?
-  pin       String
-  parentId  String?
-  parent    User?    @relation(fields: [parentId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  pin                  String?
+  age                  Int
+  gender               String?
+  parentId             Int
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  Alert                Alert[]
+  User                 User                   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  ChildCategorySetting ChildCategorySetting[]
+  ChildUrlSetting      ChildUrlSetting[]
+  DailyUsage           DailyUsage[]
+  History              History[]
 }
 
-model ClerkUser {
-  id        String   @id @default(nanoid())
-  clerkId   String   @unique
-  email     String?
-  firstName String?
-  lastName  String?
-  imageUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model ChildCategorySetting {
+  id              Int             @id @default(autoincrement())
+  childId         Int
+  categoryId      Int
+  status          StatusType      @default(ALLOWED)
+  timeLimit       Int?
+  CategoryCatalog CategoryCatalog @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  Child           Child           @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, categoryId])
+}
+
+model ChildUrlSetting {
+  id         Int        @id @default(autoincrement())
+  childId    Int
+  urlId      Int
+  status     StatusType @default(ALLOWED)
+  timeLimit  Int?
+  Child      Child      @relation(fields: [childId], references: [id], onDelete: Cascade)
+  UrlCatalog UrlCatalog @relation(fields: [urlId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, urlId])
+}
+
+model DailyUsage {
+  id              Int             @id @default(autoincrement())
+  childId         Int
+  categoryId      Int
+  date            DateTime        @default(now())
+  duration        Int             @default(0)
+  CategoryCatalog CategoryCatalog @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  Child           Child           @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, categoryId, date])
+}
+
+model History {
+  id           Int        @id @default(autoincrement())
+  childId      Int
+  fullUrl      String
+  domain       String
+  title        String?
+  categoryName String
+  duration     Int
+  visitedAt    DateTime   @default(now())
+  actionTaken  StatusType
+  device       String?
+  Child        Child      @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId, categoryName])
+  @@index([childId, visitedAt])
+}
+
+model UrlCatalog {
+  id              Int               @id @default(autoincrement())
+  domain          String            @unique
+  categoryName    String
+  safetyScore     Int
+  tags            String[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  ChildUrlSetting ChildUrlSetting[]
+}
+
+enum AlertType {
+  DANGEROUS_CONTENT
+  TIME_LIMIT_EXCEEDED
+  SUSPICIOUS_ACTIVITY
+}
+
+enum StatusType {
+  ALLOWED
+  BLOCKED
+  LIMITED
 }
