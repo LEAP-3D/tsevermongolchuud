@@ -14,7 +14,23 @@ model User {
   verified  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  Child     Child[]
+  children  Child[]
+}
+model Child {
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  pin                  String?
+  age                  Int
+  gender               String?
+  parentId             Int
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  Alert                Alert[]
+  parent               User                   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  ChildCategorySetting ChildCategorySetting[]
+  ChildUrlSetting      ChildUrlSetting[]
+  DailyUsage           DailyUsage[]
+  History              History[]
 }
 
 model Alert {
@@ -33,24 +49,6 @@ model CategoryCatalog {
   ChildCategorySetting ChildCategorySetting[]
   DailyUsage           DailyUsage[]
 }
-
-model Child {
-  id                   Int                    @id @default(autoincrement())
-  name                 String
-  pin                  String?
-  age                  Int
-  gender               String?
-  parentId             Int
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime
-  Alert                Alert[]
-  User                 User                   @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  ChildCategorySetting ChildCategorySetting[]
-  ChildUrlSetting      ChildUrlSetting[]
-  DailyUsage           DailyUsage[]
-  History              History[]
-}
-
 model ChildCategorySetting {
   id              Int             @id @default(autoincrement())
   childId         Int
