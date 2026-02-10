@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from 'react';
-import { useUser } from '@clerk/nextjs';
 import { Check, Copy, Plus, X } from 'lucide-react';
 import type { Child } from './types';
+import { useAuthUser } from '@/lib/auth';
 
 export type AddChildModalProps = {
   generatedPin: string;
@@ -20,34 +20,60 @@ export default function AddChildModal({
   onCopyPin,
   onCreated
 }: AddChildModalProps) {
-  const { user } = useUser();
+  const { user } = useAuthUser();
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
 
   const handleCreate = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
       setError('Please enter a name.');
+      setStatus('error');
+      return;
+    }
+
+    if (!user?.id) {
+      setError('Please sign in again and retry.');
+      setStatus('error');
+      return;
+    }
+
+    if (!generatedPin) {
+      setError('PIN is missing. Close and reopen the modal.');
+      setStatus('error');
       return;
     }
 
     setSubmitting(true);
     setError('');
+    setStatus('submitting');
 
     try {
+      console.log('AddChild submit', { name: trimmed, parentId: user.id, pin: generatedPin });
       const response = await fetch('/api/child', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmed,
           pin: generatedPin,
-          parentId: user?.id ?? null
+          parentId: user.id
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create child.');
+        let serverMessage = 'Failed to create child.';
+        try {
+          const payload = await response.json();
+          if (payload?.error) {
+            serverMessage = String(payload.error);
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+        console.error('AddChild failed', response.status, serverMessage);
+        throw new Error(serverMessage);
       }
 
       const data = await response.json();
@@ -61,9 +87,13 @@ export default function AddChildModal({
       };
 
       onCreated(createdChild);
+      setStatus('success');
       onClose();
     } catch (err) {
-      setError('Could not create child. Please try again.');
+      const message = err instanceof Error ? err.message : 'Could not create child. Please try again.';
+      setError(message);
+      setStatus('error');
+      console.error('AddChild error', err);
     } finally {
       setSubmitting(false);
     }
@@ -135,6 +165,11 @@ export default function AddChildModal({
         >
           {submitting ? 'Creating...' : 'Create Account'}
         </button>
+        {status !== 'idle' && (
+          <p className={`mt-3 text-xs ${status === 'error' ? 'text-red-600' : status === 'success' ? 'text-green-600' : 'text-gray-600'}`}>
+            Status: {status}
+          </p>
+        )}
       </div>
     </div>
   );

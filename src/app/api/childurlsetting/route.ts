@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+/* CREATE */
 export async function POST(req: Request) {
-  const { childId, categoryId, status, timeLimit } = await req.json();
+  const { childId, urlId, status, timeLimit } = await req.json();
 
-  const setting = await prisma.childCategorySetting.upsert({
+  const setting = await prisma.childUrlSetting.upsert({
     where: {
-      childId_categoryId: { childId, categoryId },
+      childId_urlId: { childId, urlId },
     },
     update: {
       status,
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
     },
     create: {
       childId,
-      categoryId,
+      urlId,
       status,
       timeLimit,
     },
@@ -27,12 +28,12 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const childId = searchParams.get("childId");
-  const categoryId = searchParams.get("categoryId");
+  const urlId = searchParams.get("urlId");
 
-  const settings = await prisma.childCategorySetting.findMany({
+  const settings = await prisma.childUrlSetting.findMany({
     where: {
       ...(childId ? { childId: Number(childId) } : {}),
-      ...(categoryId ? { categoryId: Number(categoryId) } : {}),
+      ...(urlId ? { urlId: Number(urlId) } : {}),
     },
   });
 
@@ -41,10 +42,10 @@ export async function GET(req: Request) {
 
 /* DELETE */
 export async function DELETE(req: Request) {
-  const { childId, categoryId } = await req.json();
+  const { childId, urlId } = await req.json();
 
-  await prisma.childCategorySetting.delete({
-    where: { childId_categoryId: { childId, categoryId } },
+  await prisma.childUrlSetting.delete({
+    where: { childId_urlId: { childId, urlId } },
   });
 
   return NextResponse.json({ success: true });

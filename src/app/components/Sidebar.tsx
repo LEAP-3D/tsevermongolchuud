@@ -18,7 +18,7 @@ export type SidebarProps = {
 
 export default function Sidebar({ activeTab, onChangeTab }: SidebarProps) {
   return (
-    <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200/80 md:min-h-screen p-4">
+    <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200/80 md:h-screen md:shrink-0 p-4">
       <div className="flex items-center gap-2 px-3 py-3 md:py-4 mb-3 md:mb-6">
         <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
           <Shield className="w-5 h-5 text-white" />

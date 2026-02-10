@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from 'react';
-import { Copy, Plus, X } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { Copy, Plus, Trash2, X } from 'lucide-react';
 import type { Child } from './types';
 import AddChildModal from './AddChildModal';
 
@@ -29,11 +29,70 @@ export default function ChildrenContent({
   onCreatedChild
 }: ChildrenContentProps) {
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
+  const initialManageSettings = useMemo(
+    () => [
+      { label: 'YouTube', value: '1h 30m', status: 'Limit' },
+      { label: 'Games', value: '2h', status: 'Limit' },
+      { label: 'Social Media', value: 'Blocked', status: 'Blocked' }
+    ],
+    []
+  );
+  const [manageSettingsRows, setManageSettingsRows] = useState(initialManageSettings);
+  const [showAddWeb, setShowAddWeb] = useState(false);
+  const [newWebLabel, setNewWebLabel] = useState('');
+  const [newWebMinutes, setNewWebMinutes] = useState('30');
+  const [newWebStatus, setNewWebStatus] = useState<'Limit' | 'Blocked'>('Limit');
 
   const selectedChild = useMemo(
     () => childrenData.find(child => child.id === selectedChildId) ?? null,
     [childrenData, selectedChildId]
   );
+
+  useEffect(() => {
+    if (selectedChildId !== null) {
+      setManageSettingsRows(initialManageSettings);
+      setShowAddWeb(false);
+      setNewWebLabel('');
+      setNewWebMinutes('30');
+      setNewWebStatus('Limit');
+    }
+  }, [initialManageSettings, selectedChildId]);
+
+  const formatMinutes = (minutesValue: number) => {
+    if (!Number.isFinite(minutesValue) || minutesValue <= 0) {
+      return '0m';
+    }
+    const hours = Math.floor(minutesValue / 60);
+    const minutes = minutesValue % 60;
+    if (hours > 0 && minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    if (hours > 0) {
+      return `${hours}h`;
+    }
+    return `${minutes}m`;
+  };
+
+  const handleAddWeb = () => {
+    const trimmedLabel = newWebLabel.trim();
+    if (!trimmedLabel) {
+      return;
+    }
+    const minutesNumber = Number.parseInt(newWebMinutes, 10);
+    const value = newWebStatus === 'Blocked' ? 'Blocked' : formatMinutes(minutesNumber);
+    setManageSettingsRows(prev => [
+      ...prev,
+      {
+        label: trimmedLabel,
+        value,
+        status: newWebStatus
+      }
+    ]);
+    setShowAddWeb(false);
+    setNewWebLabel('');
+    setNewWebMinutes('30');
+    setNewWebStatus('Limit');
+  };
 
   return (
     <div className="space-y-6">
@@ -198,33 +257,117 @@ export default function ChildrenContent({
 
             <div className="px-5 pb-5">
               <div className="rounded-xl border border-gray-100 overflow-hidden">
-                <div className="grid grid-cols-3 gap-0 bg-gray-50 text-xs font-semibold text-gray-500 px-4 py-2">
+                <div className="grid grid-cols-4 gap-0 bg-gray-50 text-xs font-semibold text-gray-500 px-4 py-2">
                   <div>Setting</div>
                   <div>Value</div>
                   <div>Status</div>
+                  <div className="text-right">Action</div>
                 </div>
-                {[
-                  { label: 'YouTube', value: '1h 30m', status: 'Limit' },
-                  { label: 'Games', value: '2h', status: 'Limit' },
-                  { label: 'Social Media', value: 'Blocked', status: 'Blocked' }
-                ].map(row => (
-                  <div key={row.label} className="grid grid-cols-3 gap-0 px-4 py-3 text-sm text-gray-700 border-t border-gray-100">
+                {manageSettingsRows.map(row => (
+                  <div key={row.label} className="grid grid-cols-4 gap-0 px-4 py-3 text-sm text-gray-700 border-t border-gray-100">
                     <div className="font-medium text-gray-900">{row.label}</div>
                     <div>{row.value}</div>
                     <div className="text-gray-500">{row.status}</div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setManageSettingsRows(prev => prev.filter(item => item.label !== row.label))}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                        aria-label={`Remove ${row.label}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
+                {manageSettingsRows.length === 0 && (
+                  <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                    No limits or blocks set yet.
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
                 <button
+                  type="button"
+                  onClick={() => setShowAddWeb(true)}
+                  className="px-4 py-2 rounded-lg border border-blue-200 bg-blue-50 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                >
+                  Add Web
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSelectedChildId(null)}
                   className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
-                  Close
+                  Cancel
                 </button>
-                <button className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600">
-                  Manage Settings
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddWeb && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-gray-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h4 className="text-lg font-semibold text-gray-900">Add Web Limit</h4>
+              <button
+                type="button"
+                onClick={() => setShowAddWeb(false)}
+                className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Website or App</label>
+                <input
+                  value={newWebLabel}
+                  onChange={event => setNewWebLabel(event.target.value)}
+                  placeholder="example.com or YouTube"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Daily Limit (minutes)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={newWebMinutes}
+                  onChange={event => setNewWebMinutes(event.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Status</label>
+                <select
+                  value={newWebStatus}
+                  onChange={event => setNewWebStatus(event.target.value === 'Blocked' ? 'Blocked' : 'Limit')}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                >
+                  <option value="Limit">Limit</option>
+                  <option value="Blocked">Blocked</option>
+                </select>
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddWeb(false)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddWeb}
+                  className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600"
+                >
+                  Add
                 </button>
               </div>
             </div>

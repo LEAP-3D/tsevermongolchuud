@@ -6,11 +6,12 @@ import { ArrowUpRight, X } from 'lucide-react';
 import type { CategorySlice, RiskPoint } from './types';
 
 export type DashboardBreakdownProps = {
+  childName?: string;
   categoryData: CategorySlice[];
   riskData: RiskPoint[];
 };
 
-export default function DashboardBreakdown({ categoryData, riskData }: DashboardBreakdownProps) {
+export default function DashboardBreakdown({ childName, categoryData, riskData }: DashboardBreakdownProps) {
   const [showCategoryDetails, setShowCategoryDetails] = useState(false);
   const [showRiskDetails, setShowRiskDetails] = useState(false);
 
@@ -46,36 +47,42 @@ export default function DashboardBreakdown({ categoryData, riskData }: Dashboard
             Details <ArrowUpRight className="w-4 h-4" />
           </button>
         </div>
-        <div className="h-56 md:h-60">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={categoryData} dataKey="value" cx="50%" cy="50%" outerRadius={75} innerRadius={45} strokeWidth={0}>
-                {categoryData.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: '#fff',
-                  border: '1px solid #e5e5e5',
-                  borderRadius: '12px',
-                  fontSize: '13px',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                }}
-              />
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                iconType="circle"
-                wrapperStyle={{
-                  fontSize: '13px',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        {categoryData.length === 0 ? (
+          <div className="h-56 md:h-60 flex items-center justify-center text-sm text-gray-500">
+            Select a child to see category data.
+          </div>
+        ) : (
+          <div className="h-56 md:h-60">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={categoryData} dataKey="value" cx="50%" cy="50%" outerRadius={75} innerRadius={45} strokeWidth={0}>
+                  {categoryData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: '#fff',
+                    border: '1px solid #e5e5e5',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }}
+                />
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  iconType="circle"
+                  wrapperStyle={{
+                    fontSize: '13px',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
@@ -88,41 +95,47 @@ export default function DashboardBreakdown({ categoryData, riskData }: Dashboard
             Details <ArrowUpRight className="w-4 h-4" />
           </button>
         </div>
-        <div className="h-56 md:h-60">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={riskData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis
-                dataKey="level"
-                stroke="#8E8E93"
-                axisLine={false}
-                tickLine={false}
-                style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-              />
-              <YAxis
-                stroke="#8E8E93"
-                axisLine={false}
-                tickLine={false}
-                style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: '#fff',
-                  border: '1px solid #e5e5e5',
-                  borderRadius: '12px',
-                  fontSize: '13px',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                }}
-              />
-              <Bar dataKey="count" radius={[8, 8, 0, 0]} barSize={40}>
-                {riskData.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {riskData.length === 0 ? (
+          <div className="h-56 md:h-60 flex items-center justify-center text-sm text-gray-500">
+            Select a child to see risk data.
+          </div>
+        ) : (
+          <div className="h-56 md:h-60">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={riskData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis
+                  dataKey="level"
+                  stroke="#8E8E93"
+                  axisLine={false}
+                  tickLine={false}
+                  style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
+                />
+                <YAxis
+                  stroke="#8E8E93"
+                  axisLine={false}
+                  tickLine={false}
+                  style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: '#fff',
+                    border: '1px solid #e5e5e5',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }}
+                />
+                <Bar dataKey="count" radius={[8, 8, 0, 0]} barSize={40}>
+                  {riskData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {showCategoryDetails && (
@@ -131,7 +144,9 @@ export default function DashboardBreakdown({ categoryData, riskData }: Dashboard
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h4 className="text-lg font-semibold text-gray-900">Category Breakdown</h4>
-                <p className="text-sm text-gray-500">Top categories and totals</p>
+                <p className="text-sm text-gray-500">
+                  {childName ? `Top categories for ${childName}` : "Top categories and totals"}
+                </p>
               </div>
               <button
                 onClick={() => setShowCategoryDetails(false)}
@@ -202,7 +217,9 @@ export default function DashboardBreakdown({ categoryData, riskData }: Dashboard
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h4 className="text-lg font-semibold text-gray-900">Risk Assessment Details</h4>
-                <p className="text-sm text-gray-500">Levels and incident counts</p>
+                <p className="text-sm text-gray-500">
+                  {childName ? `Incident levels for ${childName}` : "Levels and incident counts"}
+                </p>
               </div>
               <button
                 onClick={() => setShowRiskDetails(false)}

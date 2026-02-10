@@ -15,7 +15,7 @@ export default function TeslaAuthLayout({
   onModeChange,
 }: TeslaAuthLayoutProps) {
   return (
-    <div className="tesla-auth">
+    <div className="tesla-auth tesla-auth-layout" suppressHydrationWarning>
       <div className="tesla-auth__bg" />
       <div className="tesla-auth__grid" />
       <div className="tesla-auth__orb tesla-auth__orb--one" />
@@ -212,7 +212,7 @@ export default function TeslaAuthLayout({
           border: 1px solid rgba(99, 102, 241, 0.16);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
           align-items: center;
-          gap: 0;
+          gap: 6px;
         }
 
         .tesla-auth__toggle-btn {
@@ -258,7 +258,7 @@ export default function TeslaAuthLayout({
         }
 
         .tesla-auth__toggle[data-mode="signup"] .tesla-auth__toggle-indicator {
-          transform: translateX(100%);
+          transform: translateX(calc(100% + 6px));
         }
 
         .tesla-auth__toggle[data-mode="signin"] .tesla-auth__toggle-indicator {

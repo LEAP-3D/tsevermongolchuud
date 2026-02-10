@@ -6,10 +6,11 @@ import { ArrowUpRight, X } from 'lucide-react';
 import type { UsagePoint } from './types';
 
 export type UsageTimelineProps = {
+  childName?: string;
   usageData: UsagePoint[];
 };
 
-export default function UsageTimeline({ usageData }: UsageTimelineProps) {
+export default function UsageTimeline({ childName, usageData }: UsageTimelineProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   const summary = useMemo(() => {
@@ -39,44 +40,50 @@ export default function UsageTimeline({ usageData }: UsageTimelineProps) {
           Details <ArrowUpRight className="w-4 h-4" />
         </button>
       </div>
-      <div className="h-56 md:h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={usageData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis
-              dataKey="day"
-              stroke="#8E8E93"
-              axisLine={false}
-              tickLine={false}
-              style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-            />
-            <YAxis
-              stroke="#8E8E93"
-              axisLine={false}
-              tickLine={false}
-              style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-            />
-            <Tooltip
-              contentStyle={{
-                background: '#fff',
-                border: '1px solid #e5e5e5',
-                borderRadius: '12px',
-                fontSize: '13px',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="hours"
-              stroke="#007AFF"
-              strokeWidth={2.5}
-              dot={{ fill: '#007AFF', r: 4, strokeWidth: 0 }}
-              activeDot={{ r: 6, fill: '#007AFF', strokeWidth: 0 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {usageData.length === 0 ? (
+        <div className="h-56 md:h-64 flex items-center justify-center text-sm text-gray-500">
+          Select a child to see usage data.
+        </div>
+      ) : (
+        <div className="h-56 md:h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={usageData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis
+                dataKey="day"
+                stroke="#8E8E93"
+                axisLine={false}
+                tickLine={false}
+                style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
+              />
+              <YAxis
+                stroke="#8E8E93"
+                axisLine={false}
+                tickLine={false}
+                style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: '#fff',
+                  border: '1px solid #e5e5e5',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="hours"
+                stroke="#007AFF"
+                strokeWidth={2.5}
+                dot={{ fill: '#007AFF', r: 4, strokeWidth: 0 }}
+                activeDot={{ r: 6, fill: '#007AFF', strokeWidth: 0 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {showDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
@@ -84,7 +91,9 @@ export default function UsageTimeline({ usageData }: UsageTimelineProps) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h4 className="text-lg font-semibold text-gray-900">Usage Timeline Details</h4>
-                <p className="text-sm text-gray-500">Weekly breakdown and summary</p>
+                <p className="text-sm text-gray-500">
+                  {childName ? `Weekly breakdown for ${childName}` : "Weekly breakdown and summary"}
+                </p>
               </div>
               <button
                 onClick={() => setShowDetails(false)}
