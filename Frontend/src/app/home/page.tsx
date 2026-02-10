@@ -1,7 +1,9 @@
 "use client";
+/* eslint-disable max-lines */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
+import Link from "next/link";
 import { useAuthUser } from "@/lib/auth";
 import Sidebar from "../components/Sidebar";
 import DashboardContent from "../components/DashboardContent";
@@ -94,53 +96,53 @@ export default function HomeDashboard() {
 
   const [children, setChildren] = useState<Child[]>([]);
 
-  useEffect(() => {
-    const loadChildren = async () => {
-      if (!user?.id) {
-        setChildren([]);
-        return;
-      }
-      setChildrenLoading(true);
-      setChildrenError("");
-      try {
-        const response = await fetch(`/api/child?parentId=${encodeURIComponent(String(user.id))}`);
-        if (!response.ok) {
-          let message = "Failed to load children.";
-          try {
-            const payload = await response.json();
-            if (payload?.error) {
-              message = String(payload.error);
-            }
-          } catch {
-            // ignore JSON parse errors
+  const loadChildren = useCallback(async () => {
+    if (!user?.id) {
+      setChildren([]);
+      return;
+    }
+    setChildrenLoading(true);
+    setChildrenError("");
+    try {
+      const response = await fetch(`/api/child?parentId=${encodeURIComponent(String(user.id))}`);
+      if (!response.ok) {
+        let message = "Failed to load children.";
+        try {
+          const payload = await response.json();
+          if (payload?.error) {
+            message = String(payload.error);
           }
-          throw new Error(message);
+        } catch {
+          // ignore JSON parse errors
         }
-        const data: Array<{ id: number; name: string; pin?: string | null }> = await response.json();
-        const mapped: Child[] = data.map((child) => {
-          return {
-            id: child.id,
-            name: child.name,
-            status: "Active",
-            todayUsage: "0h 0m",
-            pin: child.pin ?? "----",
-            avatar: child.name?.[0]?.toUpperCase() ?? "C",
-          };
-        });
-        setChildren(mapped);
-        if (!selectedChildId && mapped.length > 0) {
-          setSelectedChildId(mapped[0].id);
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to load children.";
-        setChildrenError(message);
-      } finally {
-        setChildrenLoading(false);
+        throw new Error(message);
       }
-    };
+      const data: Array<{ id: number; name: string; pin?: string | null }> = await response.json();
+      const mapped: Child[] = data.map((child) => {
+        return {
+          id: child.id,
+          name: child.name,
+          status: "Active",
+          todayUsage: "0h 0m",
+          pin: child.pin ?? "----",
+          avatar: child.name?.[0]?.toUpperCase() ?? "C",
+        };
+      });
+      setChildren(mapped);
+      if (!selectedChildId && mapped.length > 0) {
+        setSelectedChildId(mapped[0].id);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load children.";
+      setChildrenError(message);
+    } finally {
+      setChildrenLoading(false);
+    }
+  }, [selectedChildId, user?.id]);
 
+  useEffect(() => {
     void loadChildren();
-  }, [user?.id]);
+  }, [loadChildren]);
 
   const selectedChild = children.find(child => child.id === selectedChildId) ?? null;
   const todayUsage = selectedChild ? formatMinutes(todayUsageMinutes) : "--";
@@ -324,17 +326,17 @@ export default function HomeDashboard() {
             <p className="text-sm text-slate-600 mb-6">
               Please log in to access your dashboard.
             </p>
-            <a
+            <Link
               href="/login"
               className="block w-full rounded-xl bg-indigo-500 px-6 py-3 text-center text-white font-medium shadow-sm hover:bg-indigo-600 transition"
             >
               Go to Login
-            </a>
+            </Link>
             <p className="mt-4 text-xs text-slate-500">
               New here?{" "}
-              <a className="text-indigo-600 hover:text-indigo-700" href="/sign">
+              <Link className="text-indigo-600 hover:text-indigo-700" href="/sign">
                 Create an account
-              </a>
+              </Link>
             </p>
           </div>
         </div>

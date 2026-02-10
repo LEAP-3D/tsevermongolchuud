@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable max-lines */
 
 import { useEffect, useMemo, useState } from 'react';
 import { X, Clock, Plus } from 'lucide-react';

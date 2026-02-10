@@ -3,7 +3,6 @@
 import TeslaAuthLayout from "@/app/components/TeslaAuthLayout";
 import { type FormEvent, useState } from "react";
 import { setStoredUser } from "@/lib/auth";
-import Link from "next/link";
 
 export default function SignPage() {
   const [name, setName] = useState("");

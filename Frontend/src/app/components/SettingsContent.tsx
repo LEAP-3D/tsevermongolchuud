@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable max-lines */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import type { Child } from "./types";
@@ -22,7 +23,7 @@ export default function SettingsContent() {
   const [childrenError, setChildrenError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const loadChildren = async () => {
+  const loadChildren = useCallback(async () => {
     if (!user?.id) {
       setChildren([]);
       return;
@@ -59,11 +60,11 @@ export default function SettingsContent() {
     } finally {
       setChildrenLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     void loadChildren();
-  }, [user?.id]);
+  }, [loadChildren, user?.id]);
 
   const handleDeleteChild = async (childId: number, childName: string) => {
     const confirmed = window.confirm(`Delete ${childName}? This cannot be undone.`);

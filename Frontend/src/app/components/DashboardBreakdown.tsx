@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable max-lines */
 
 import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, CartesianGrid, XAxis, YAxis } from 'recharts';

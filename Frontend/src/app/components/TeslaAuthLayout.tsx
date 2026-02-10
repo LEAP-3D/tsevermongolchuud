@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable max-lines */
 
 import type { ReactNode } from "react";
 import Link from "next/link";

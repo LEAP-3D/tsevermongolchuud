@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable max-lines */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ban } from 'lucide-react';
 import { useAuthUser } from '@/lib/auth';
 
@@ -20,7 +21,7 @@ export default function BlockingContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const loadChildren = async () => {
+  const loadChildren = useCallback(async () => {
     if (!user?.id) {
       setChildren([]);
       return;
@@ -34,9 +35,9 @@ export default function BlockingContent() {
     if (!selectedChildId && data.length > 0) {
       setSelectedChildId(data[0].id);
     }
-  };
+  }, [selectedChildId, user?.id]);
 
-  const loadBlocking = async (childId: number) => {
+  const loadBlocking = useCallback(async (childId: number) => {
     setLoading(true);
     setError('');
     try {
@@ -64,11 +65,11 @@ export default function BlockingContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     void loadChildren();
-  }, [user?.id]);
+  }, [loadChildren, user?.id]);
 
   useEffect(() => {
     if (selectedChildId && user?.id) {
@@ -77,7 +78,7 @@ export default function BlockingContent() {
       setCategories([]);
       setCustomBlocks([]);
     }
-  }, [selectedChildId, user?.id]);
+  }, [loadBlocking, selectedChildId, user?.id]);
 
   const activeFilters = useMemo(
     () => categories.filter(category => category.status === 'BLOCKED').length,

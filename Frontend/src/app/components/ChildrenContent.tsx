@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable max-lines */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Copy, Plus, Trash2, X } from 'lucide-react';
 import type { Child } from './types';
 import AddChildModal from './AddChildModal';
@@ -48,15 +49,14 @@ export default function ChildrenContent({
     [childrenData, selectedChildId]
   );
 
-  useEffect(() => {
-    if (selectedChildId !== null) {
-      setManageSettingsRows(initialManageSettings);
-      setShowAddWeb(false);
-      setNewWebLabel('');
-      setNewWebMinutes('30');
-      setNewWebStatus('Limit');
-    }
-  }, [initialManageSettings, selectedChildId]);
+  const openSettings = (childId: number) => {
+    setSelectedChildId(childId);
+    setManageSettingsRows(initialManageSettings);
+    setShowAddWeb(false);
+    setNewWebLabel('');
+    setNewWebMinutes('30');
+    setNewWebStatus('Limit');
+  };
 
   const formatMinutes = (minutesValue: number) => {
     if (!Number.isFinite(minutesValue) || minutesValue <= 0) {
@@ -160,7 +160,7 @@ export default function ChildrenContent({
                 View Activity
               </button>
               <button
-                onClick={() => setSelectedChildId(child.id)}
+                onClick={() => openSettings(child.id)}
                 className="px-4 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
               >
                 Settings

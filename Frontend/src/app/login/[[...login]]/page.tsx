@@ -3,7 +3,6 @@
 import TeslaAuthLayout from "@/app/components/TeslaAuthLayout";
 import { Component, type FormEvent, type ReactNode, useState } from "react";
 import { setStoredUser } from "@/lib/auth";
-import Link from "next/link";
 
 class LoginErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -25,7 +24,6 @@ class LoginErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
 }
 
 export default function LoginPage() {
-  const [modeError, setModeError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -79,11 +77,6 @@ export default function LoginPage() {
   return (
     <TeslaAuthLayout mode="signin">
       <LoginErrorBoundary>
-        {modeError && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {modeError}
-          </div>
-        )}
         <div className="w-full space-y-6">
           <div className="space-y-1">
             <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Sign In</h2>
