@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PrismaPg } from "@prisma/adapter-pg";
 
 type PrismaClientLike = any;
