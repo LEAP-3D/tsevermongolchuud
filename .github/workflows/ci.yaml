@@ -2,10 +2,16 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    paths:
+      - "Frontend/**"
 
 permissions:
   contents: read
   pull-requests: write
+
+defaults:
+  run:
+    working-directory: ./Frontend
 
 jobs:
   lint:
@@ -17,6 +23,7 @@ jobs:
         with:
           node-version: "latest"
           cache: "npm"
+          cache-dependency-path: ./Frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Run Lint
@@ -28,6 +35,7 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }} # Added here
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -35,6 +43,7 @@ jobs:
         with:
           node-version: "latest"
           cache: "npm"
+          cache-dependency-path: ./Frontend/package-lock.json
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Install dependencies
@@ -52,6 +61,7 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }} # Added here
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -59,29 +69,24 @@ jobs:
         with:
           node-version: "latest"
           cache: "npm"
+          cache-dependency-path: ./Frontend/package-lock.json
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma Client
         run: npx prisma generate
-
       - name: Pull and Deploy Preview
         id: deploy
         run: |
           vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
           vercel build --token=${{ secrets.VERCEL_TOKEN }}
-          # Capture the URL into a variable and save it to GITHUB_OUTPUT
           DEPLOY_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
-
       - name: Post Preview Link to PR
         uses: mshick/add-pr-comment@v2
         with:
-          message-id: vercel-preview 
+          message-id: vercel-preview
           message: |
             🚀 **Vercel Preview Deployed!**
-
             **URL:** ${{ steps.deploy.outputs.url }}
-            **Environment:** Preview
-            **Latest Commit:** ${{ github.sha }}
