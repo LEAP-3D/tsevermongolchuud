@@ -1,0 +1,435 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Tesla auth layout fallback styles */
+.tesla-auth-layout {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: #f5f6ff;
+  color: #000;
+  font-family: var(--font-space-grotesk), "Inter", "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+
+.tesla-auth-backdrop {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: #f5f6ff;
+  color: #000;
+  font-family: var(--font-space-grotesk), "Inter", "Segoe UI", sans-serif;
+  overflow-x: hidden;
+  isolation: isolate;
+}
+
+.tesla-auth-layout .tesla-auth__bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 22% 40%, rgba(124, 92, 255, 0.2) 0%, transparent 52%),
+    radial-gradient(circle at 78% 30%, rgba(171, 186, 255, 0.32) 0%, transparent 55%),
+    radial-gradient(circle at 60% 85%, rgba(254, 205, 211, 0.25) 0%, transparent 48%);
+  animation: gradientShift 18s ease infinite;
+}
+
+.tesla-auth-backdrop .tesla-auth__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 40%, rgba(124, 92, 255, 0.2) 0%, transparent 52%),
+    radial-gradient(circle at 78% 30%, rgba(171, 186, 255, 0.32) 0%, transparent 55%),
+    radial-gradient(circle at 60% 85%, rgba(254, 205, 211, 0.25) 0%, transparent 48%);
+  animation: gradientShift 18s ease infinite;
+}
+
+.tesla-auth-layout .tesla-auth__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+}
+
+.tesla-auth-backdrop .tesla-auth__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+}
+
+.tesla-auth-layout .tesla-auth__orb {
+  position: absolute;
+  border-radius: 999px;
+  opacity: 0.45;
+  mix-blend-mode: multiply;
+  animation: float 12s ease-in-out infinite;
+}
+
+.tesla-auth-backdrop .tesla-auth__orb {
+  position: absolute;
+  border-radius: 999px;
+  opacity: 0.45;
+  mix-blend-mode: multiply;
+  animation: float 12s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tesla-auth-layout .tesla-auth__orb--one {
+  width: 360px;
+  height: 360px;
+  left: -80px;
+  bottom: 10%;
+  background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.55), rgba(99, 102, 241, 0));
+}
+
+.tesla-auth-backdrop .tesla-auth__orb--one {
+  width: 360px;
+  height: 360px;
+  left: -80px;
+  bottom: 10%;
+  background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.55), rgba(99, 102, 241, 0));
+}
+
+.tesla-auth-layout .tesla-auth__orb--two {
+  width: 260px;
+  height: 260px;
+  right: 6%;
+  top: 6%;
+  background: radial-gradient(circle at 30% 30%, rgba(236, 72, 153, 0.4), rgba(236, 72, 153, 0));
+  animation-delay: -4s;
+}
+
+.tesla-auth-backdrop .tesla-auth__orb--two {
+  width: 260px;
+  height: 260px;
+  right: 6%;
+  top: 6%;
+  background: radial-gradient(circle at 30% 30%, rgba(236, 72, 153, 0.4), rgba(236, 72, 153, 0));
+  animation-delay: -4s;
+}
+
+.tesla-auth-layout .tesla-auth__content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3.5rem;
+  padding: 4.5rem 3.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.tesla-auth-backdrop .tesla-auth__content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  pointer-events: auto;
+}
+
+@media (min-width: 1024px) {
+  .tesla-auth-layout .tesla-auth__content {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.tesla-auth-layout .tesla-auth__branding {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.5rem 2rem;
+  animation: slideInLeft 0.8s ease-out;
+}
+
+.tesla-auth-layout .tesla-auth__title {
+  font-size: clamp(2.75rem, 6vw, 4.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 1.25rem;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #5c4bff 0%, #8f7cff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: fadeInUp 0.8s ease-out 0.2s both;
+}
+
+.tesla-auth-layout .tesla-auth__subtitle {
+  font-size: 1.35rem;
+  line-height: 1.7;
+  color: rgba(15, 23, 42, 0.6);
+  max-width: 500px;
+  font-weight: 400;
+  animation: fadeInUp 0.8s ease-out 0.4s both;
+}
+
+.tesla-auth-layout .tesla-auth__panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: slideInRight 0.8s ease-out;
+}
+
+.tesla-auth-layout .tesla-auth__card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 30px;
+  padding: 2.75rem 2.5rem 3rem;
+  box-shadow:
+    0 28px 80px rgba(99, 102, 241, 0.2),
+    0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.tesla-auth-layout .tesla-auth__toggle {
+  position: relative;
+  display: flex;
+  background: rgba(99, 102, 241, 0.12);
+  border-radius: 14px;
+  padding: 6px;
+  margin-bottom: 2rem;
+  height: 52px;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  align-items: center;
+  gap: 6px;
+}
+
+.tesla-auth-layout .tesla-auth__toggle-btn {
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  color: rgba(100, 116, 139, 0.9);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  border-radius: 10px;
+  text-align: center;
+  flex: 1 1 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.tesla-auth-layout .tesla-auth__toggle-btn.is-active {
+  color: #1e1b4b;
+}
+
+.tesla-auth-layout .tesla-auth__toggle-indicator {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: calc(50% - 6px);
+  height: 40px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow:
+    0 10px 20px rgba(99, 102, 241, 0.2),
+    0 4px 10px rgba(15, 23, 42, 0.08);
+  transition: transform 0.35s ease;
+}
+
+.tesla-auth-layout .tesla-auth__toggle[data-mode="signup"] .tesla-auth__toggle-indicator {
+  transform: translateX(calc(100% + 6px));
+}
+
+.tesla-auth-layout .tesla-auth__toggle[data-mode="signin"] .tesla-auth__toggle-indicator {
+  transform: translateX(0%);
+}
+
+.tesla-auth-layout .tesla-auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tesla-auth-layout .tesla-auth__form-inner {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@media (max-width: 1024px) {
+  .tesla-auth-layout .tesla-auth__content {
+    padding: 3.5rem 2.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .tesla-auth-layout .tesla-auth__content {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding: 3rem 1.5rem;
+    align-items: center;
+  }
+
+  .tesla-auth-layout .tesla-auth__branding {
+    padding: 0;
+    text-align: center;
+    align-items: center;
+  }
+
+  .tesla-auth-layout .tesla-auth__subtitle {
+    font-size: 1.1rem;
+    max-width: 420px;
+  }
+
+  .tesla-auth-layout .tesla-auth__card {
+    padding: 2rem 1.5rem 2.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .tesla-auth-layout {
+    min-height: auto;
+  }
+
+  .tesla-auth-layout .tesla-auth__content {
+    padding: 2.5rem 1.25rem 3rem;
+  }
+
+  .tesla-auth-layout .tesla-auth__card {
+    padding: 1.75rem 1.25rem 2.25rem;
+  }
+
+  .tesla-auth-layout .tesla-auth__toggle {
+    height: 48px;
+    margin-bottom: 1.5rem;
+  }
+
+  .tesla-auth-layout .tesla-auth__toggle-btn {
+    font-size: 0.9rem;
+  }
+
+  .tesla-auth-layout .tesla-auth__toggle-indicator {
+    height: 36px;
+    top: 6px;
+  }
+}
+
+@media (max-width: 640px) {
+  .tesla-auth-backdrop {
+    overflow-y: auto;
+  }
+
+  .tesla-auth-backdrop .tesla-auth__orb {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .tesla-auth-layout .tesla-auth__content {
+    padding: 2.25rem 1rem 2.5rem;
+    align-items: stretch;
+  }
+
+  .tesla-auth-layout .tesla-auth__subtitle {
+    font-size: 1rem;
+  }
+
+  .tesla-auth-layout .tesla-auth__card {
+    border-radius: 24px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .tesla-auth-layout .tesla-auth__card {
+    padding: 1.5rem 1.1rem 2rem;
+  }
+}
+
+@keyframes gradientShift {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+@keyframes slideInLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  0% {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
