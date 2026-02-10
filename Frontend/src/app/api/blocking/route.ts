@@ -30,7 +30,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [categories, categorySettings, urlSettings] = await Promise.all([
+  const [categories, categorySettings, urlSettings]: [
+    Array<{ id: number; name: string }>,
+    Array<{ categoryId: number; status: string }>,
+    Array<{ urlId: number }>
+  ] = await Promise.all([
     prisma.categoryCatalog.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
@@ -46,7 +50,7 @@ export async function GET(req: Request) {
   ]);
 
   const urlIds = urlSettings.map((setting) => setting.urlId);
-  const urlCatalog = urlIds.length
+  const urlCatalog: Array<{ id: number; domain: string }> = urlIds.length
     ? await prisma.urlCatalog.findMany({
         where: { id: { in: urlIds } },
         select: { id: true, domain: true },

@@ -1,6 +1,6 @@
 "use client";
 
-import TeslaAuthLayout from "@/app/components/TeslaAuthLayout";
+import TeslaAuthLayout from "../../components/TeslaAuthLayout";
 import { Component, type FormEvent, type ReactNode, useState } from "react";
 import { setStoredUser } from "@/lib/auth";
 

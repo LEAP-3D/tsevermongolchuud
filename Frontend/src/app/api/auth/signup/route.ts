@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export async function POST(req: Request) {
@@ -24,7 +23,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ user });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    const isUniqueError =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002";
+    if (isUniqueError) {
       return NextResponse.json({ error: "Email already in use." }, { status: 409 });
     }
     const message = error instanceof Error ? error.message : "Sign up failed.";
