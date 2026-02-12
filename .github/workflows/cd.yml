@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma Client # Added this step to CD as well
-        run: npx prisma generate --schema ../../prisma/schema.prisma
+        run: npx prisma generate --schema prisma/schema.prisma
       - name: Pull Vercel Environment Info
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build Project Artifacts
