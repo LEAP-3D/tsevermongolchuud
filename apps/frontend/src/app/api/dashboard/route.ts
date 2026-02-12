@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
@@ -22,9 +23,9 @@ const getUbDayStart = (value: Date = new Date()) => {
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(value);
-  const year = Number(parts.find(part => part.type == "year")?.value ?? 0);
-  const month = Number(parts.find(part => part.type == "month")?.value ?? 1);
-  const day = Number(parts.find(part => part.type == "day")?.value ?? 1);
+  const year = Number(parts.find(part => part.type === "year")?.value ?? 0);
+  const month = Number(parts.find(part => part.type === "month")?.value ?? 1);
+  const day = Number(parts.find(part => part.type === "day")?.value ?? 1);
   return new Date(Date.UTC(year, month - 1, day));
 };
 
@@ -117,7 +118,7 @@ export async function GET(req: Request) {
     select: { id: true, parentId: true },
   });
 
-  if (!child || child.parentId != parentId) {
+  if (!child || child.parentId !== parentId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -176,7 +177,7 @@ export async function GET(req: Request) {
       if (!entry.visitedAt) continue;
       const visited = new Date(entry.visitedAt);
       if (Number.isNaN(visited.getTime())) continue;
-      if (getUbDateKey(visited) != todayKey) continue;
+      if (getUbDateKey(visited) !== todayKey) continue;
       const hour = getUbHour(visited);
       const bucket = Math.floor(hour / bucketHours) * bucketHours;
       hourTotals.set(bucket, (hourTotals.get(bucket) ?? 0) + (entry.duration ?? 0));
