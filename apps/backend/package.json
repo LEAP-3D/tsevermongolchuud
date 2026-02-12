@@ -1,0 +1,23 @@
+{
+  "name": "safekid-backend",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "db:push": "npx prisma db push",
+    "db:studio": "npx prisma studio",
+    "seed": "node ../../prisma/seed.js"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^8.4.1",
+    "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.4",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3",
+    "prisma": "^5.22.0"
+  }
+}
