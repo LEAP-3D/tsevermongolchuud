@@ -1,10 +1,9 @@
 "use client";
 
-import { Shield, Clock, Users, Settings, BarChart3, Brain, Ban, Zap } from 'lucide-react';
+import { Shield, Clock, Users, Settings, BarChart3, Ban, Zap } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
-  { id: 'ai-analysis', icon: Brain, label: 'AI Assistant' },
   { id: 'blocking', icon: Ban, label: 'Blocking' },
   { id: 'time-limits', icon: Clock, label: 'Time Limits' },
   { id: 'children', icon: Users, label: 'Children' },

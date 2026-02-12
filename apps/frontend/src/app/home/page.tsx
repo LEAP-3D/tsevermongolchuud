@@ -2,16 +2,15 @@
 /* eslint-disable max-lines */
 
 import { useCallback, useEffect, useState } from "react";
-import type { KeyboardEvent } from "react";
 import Link from "next/link";
 import { useAuthUser } from "@/lib/auth";
 import Sidebar from "../components/Sidebar";
 import DashboardContent from "../components/DashboardContent";
-import AIAssistantContent from "../components/AIAssistantContent";
 import BlockingContent from "../components/BlockingContent";
 import TimeLimitsContent from "../components/TimeLimitsContent";
 import ChildrenContent from "../components/ChildrenContent";
 import SettingsContent from "../components/SettingsContent";
+import FloatingAIAssistant from "../components/FloatingAIAssistant";
 import type {
   CategorySlice,
   ChatMessage,
@@ -20,6 +19,13 @@ import type {
   UsagePoint,
 } from "../components/types";
 import TeslaAuthBackdrop from "../components/TeslaAuthBackdrop";
+
+const QUICK_PROMPTS = [
+  "Could you describe my children's internet activity?",
+  "Are there any safety concerns today?",
+  "Give me a weekly behavior summary.",
+  "What limits should I adjust this week?",
+];
 
 export default function HomeDashboard() {
   const { user, loading: authLoading } = useAuthUser();
@@ -75,13 +81,6 @@ export default function HomeDashboard() {
     }, 1000);
 
     setChatInput("");
-  };
-
-  const handleKeyPress = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
   };
 
   const formatMinutes = (minutesValue: number | null) => {
@@ -269,17 +268,6 @@ export default function HomeDashboard() {
             />
           </>
         );
-      case "ai-analysis":
-        return (
-          <AIAssistantContent
-            messages={chatMessages}
-            chatInput={chatInput}
-            onChangeInput={setChatInput}
-            onSendMessage={() => sendMessage()}
-            onKeyPress={handleKeyPress}
-            onQuickQuestion={(question) => sendMessage(question)}
-          />
-        );
       case "blocking":
         return <BlockingContent />;
       case "time-limits":
@@ -360,6 +348,13 @@ export default function HomeDashboard() {
             <div className="max-w-6xl mx-auto">{renderContent()}</div>
           </div>
         </div>
+        <FloatingAIAssistant
+          messages={chatMessages}
+          chatInput={chatInput}
+          onChangeInput={setChatInput}
+          onSendMessage={sendMessage}
+          quickPrompts={QUICK_PROMPTS}
+        />
       </div>
     </TeslaAuthBackdrop>
   );
