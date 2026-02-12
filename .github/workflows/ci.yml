@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - "apps/frontend/**"
+      - ".github/workflows/**"
 
 permissions:
   contents: read
@@ -49,7 +50,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma Client
-        run: npx prisma generate
+        run: npx prisma generate --schema ../../prisma/schema.prisma
       - name: Vercel Pull and Build
         run: |
           vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
@@ -75,7 +76,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma Client
-        run: npx prisma generate
+        run: npx prisma generate --schema ../../prisma/schema.prisma
       - name: Pull and Deploy Preview
         id: deploy
         run: |
