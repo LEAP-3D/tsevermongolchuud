@@ -1,18 +1,75 @@
 "use client";
 /* eslint-disable max-lines */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Clock, Plus } from 'lucide-react';
 import { useAuthUser } from '@/lib/auth';
 
+type LimitItem = { id: number; name: string; minutes: number };
+
+type TimeLimitsDraft = {
+  dailyLimit: number;
+  weekdayLimit: number;
+  weekendLimit: number;
+  sessionLimit: number;
+  breakEvery: number;
+  breakDuration: number;
+  focusMode: boolean;
+  downtimeEnabled: boolean;
+  appLimits: LimitItem[];
+  categoryLimits: LimitItem[];
+  blockedDuringFocus: string[];
+};
+
+const getDraftKey = (parentId: number, childId: number) => `timelimits:draft:${parentId}:${childId}`;
+const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+const readDraft = (parentId: number, childId: number): TimeLimitsDraft | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(getDraftKey(parentId, childId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as TimeLimitsDraft & { updatedAt?: number };
+    const updatedAt = Number(parsed.updatedAt);
+
+    // Invalidate legacy drafts (no timestamp) and very old drafts to prevent stale values.
+    if (!Number.isFinite(updatedAt) || Date.now() - updatedAt > DRAFT_MAX_AGE_MS) {
+      window.localStorage.removeItem(getDraftKey(parentId, childId));
+      return null;
+    }
+
+    const { updatedAt: _updatedAt, ...draft } = parsed;
+    return draft as TimeLimitsDraft;
+  } catch {
+    return null;
+  }
+};
+
+const writeDraft = (parentId: number, childId: number, draft: TimeLimitsDraft) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      getDraftKey(parentId, childId),
+      JSON.stringify({
+        ...draft,
+        updatedAt: Date.now(),
+      })
+    );
+  } catch {
+    // ignore storage write errors
+  }
+};
+
 export default function TimeLimitsContent() {
   const { user } = useAuthUser();
-  const [dailyLimit, setDailyLimit] = useState(240);
-  const [weekdayLimit, setWeekdayLimit] = useState(180);
-  const [weekendLimit, setWeekendLimit] = useState(300);
-  const [sessionLimit, setSessionLimit] = useState(60);
-  const [breakEvery, setBreakEvery] = useState(45);
-  const [breakDuration, setBreakDuration] = useState(10);
+  const skipNextAutoSaveRef = useRef(true);
+  const isSavingRef = useRef(false);
+  const [dailyLimit, setDailyLimit] = useState(240 * 60);
+  const [weekdayLimit, setWeekdayLimit] = useState(180 * 60);
+  const [weekendLimit, setWeekendLimit] = useState(300 * 60);
+  const [sessionLimit, setSessionLimit] = useState(60 * 60);
+  const [breakEvery, setBreakEvery] = useState(45 * 60);
+  const [breakDuration, setBreakDuration] = useState(10 * 60);
   const [focusMode, setFocusMode] = useState(false);
   const [downtimeEnabled, setDowntimeEnabled] = useState(true);
 
@@ -22,6 +79,20 @@ export default function TimeLimitsContent() {
     if (hrs === 0) return `${mins}m`;
     if (mins === 0) return `${hrs}h`;
     return `${hrs}h ${mins}m`;
+  };
+
+  const formatDuration = (seconds: number) => {
+    const totalSeconds = Math.max(0, Math.round(seconds));
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    if (hrs > 0 && mins > 0 && secs > 0) return `${hrs}h ${mins}m ${secs}s`;
+    if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
+    if (hrs > 0 && secs > 0) return `${hrs}h ${secs}s`;
+    if (hrs > 0) return `${hrs}h`;
+    if (mins > 0 && secs > 0) return `${mins}m ${secs}s`;
+    if (mins > 0) return `${mins}m`;
+    return `${secs}s`;
   };
 
   const [appLimits, setAppLimits] = useState([
@@ -61,10 +132,21 @@ export default function TimeLimitsContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [hydrated, setHydrated] = useState(false);
+  const [dailyRefreshing, setDailyRefreshing] = useState(false);
 
-  const minLimit = 30;
-  const maxLimit = 720;
-  const fillPercent = ((dailyLimit - minLimit) / (maxLimit - minLimit)) * 100;
+  const dailyHours = Math.floor(dailyLimit / 3600);
+  const dailyMinutes = Math.floor((dailyLimit % 3600) / 60);
+  const dailySeconds = dailyLimit % 60;
+
+  const updateDailyLimitPart = (part: 'hours' | 'minutes' | 'seconds', value: number) => {
+    const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    const nextHours = part === 'hours' ? safeValue : dailyHours;
+    const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : dailyMinutes;
+    const nextSeconds = part === 'seconds' ? Math.min(59, safeValue) : dailySeconds;
+    const total = nextHours * 3600 + nextMinutes * 60 + nextSeconds;
+    setDailyLimit(total >= 1 ? total : 1);
+  };
 
   const defaultAppLimits = useMemo(
     () => [
@@ -96,6 +178,39 @@ export default function TimeLimitsContent() {
   );
 
   useEffect(() => {
+    if (!user?.id || !selectedChildId) {
+      setHydrated(false);
+      return;
+    }
+    const draft = readDraft(user.id, selectedChildId);
+    if (!draft) {
+      setHydrated(false);
+      return;
+    }
+    skipNextAutoSaveRef.current = true;
+    setDailyLimit(Number(draft.dailyLimit) || 1);
+    setWeekdayLimit(Number(draft.weekdayLimit) || 180 * 60);
+    setWeekendLimit(Number(draft.weekendLimit) || 300 * 60);
+    setSessionLimit(Number(draft.sessionLimit) || 60 * 60);
+    setBreakEvery(Number(draft.breakEvery) || 45 * 60);
+    setBreakDuration(Number(draft.breakDuration) || 10 * 60);
+    setFocusMode(Boolean(draft.focusMode));
+    setDowntimeEnabled(Boolean(draft.downtimeEnabled));
+    setAppLimits(Array.isArray(draft.appLimits) && draft.appLimits.length > 0 ? draft.appLimits : defaultAppLimits);
+    setCategoryLimits(
+      Array.isArray(draft.categoryLimits) && draft.categoryLimits.length > 0
+        ? draft.categoryLimits
+        : defaultCategoryLimits
+    );
+    setBlockedDuringFocus(
+      Array.isArray(draft.blockedDuringFocus) && draft.blockedDuringFocus.length > 0
+        ? draft.blockedDuringFocus
+        : ['Social Media', 'Gaming', 'Streaming Video']
+    );
+    setHydrated(true);
+  }, [defaultAppLimits, defaultCategoryLimits, selectedChildId, user?.id]);
+
+  useEffect(() => {
     const loadChildren = async () => {
       if (!user?.id) {
         setChildren([]);
@@ -118,16 +233,27 @@ export default function TimeLimitsContent() {
     void loadChildren();
   }, [user?.id, selectedChildId]);
 
-  useEffect(() => {
-    const loadLimits = async () => {
+  const loadLimitsFromServer = useCallback(
+    async (options?: { isManualRefresh?: boolean; manualSuccessMessage?: string }) => {
       if (!user?.id || !selectedChildId) return;
-      setLoading(true);
+
+      const isManualRefresh = Boolean(options?.isManualRefresh);
+      if (isManualRefresh) {
+        setDailyRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       setError('');
-      setSuccess('');
+      if (isManualRefresh) {
+        setSuccess('');
+      }
+
       try {
-        const response = await fetch(
-          `/api/timelimits?childId=${selectedChildId}&parentId=${encodeURIComponent(String(user.id))}`
-        );
+        const response = await fetch(`/api/timelimits?childId=${selectedChildId}`, {
+          cache: 'no-store',
+          credentials: 'include',
+        });
         if (!response.ok) {
           let message = 'Failed to load time limits.';
           try {
@@ -138,6 +264,7 @@ export default function TimeLimitsContent() {
           }
           throw new Error(message);
         }
+
         const payload: {
           timeLimit?: {
             dailyLimit: number;
@@ -155,14 +282,16 @@ export default function TimeLimitsContent() {
           blockedDuringFocus?: Array<{ id: number; name: string }>;
         } = await response.json();
 
+        skipNextAutoSaveRef.current = true;
+
         const limit = payload.timeLimit;
         if (limit) {
-          setDailyLimit(limit.dailyLimit ?? 240);
-          setWeekdayLimit(limit.weekdayLimit ?? 180);
-          setWeekendLimit(limit.weekendLimit ?? 300);
-          setSessionLimit(limit.sessionLimit ?? 60);
-          setBreakEvery(limit.breakEvery ?? 45);
-          setBreakDuration(limit.breakDuration ?? 10);
+          setDailyLimit(limit.dailyLimit ?? 240 * 60);
+          setWeekdayLimit(limit.weekdayLimit ?? 180 * 60);
+          setWeekendLimit(limit.weekendLimit ?? 300 * 60);
+          setSessionLimit(limit.sessionLimit ?? 60 * 60);
+          setBreakEvery(limit.breakEvery ?? 45 * 60);
+          setBreakDuration(limit.breakDuration ?? 10 * 60);
           setFocusMode(Boolean(limit.focusMode));
           setDowntimeEnabled(Boolean(limit.downtimeEnabled));
         }
@@ -182,28 +311,60 @@ export default function TimeLimitsContent() {
             ? payload.blockedDuringFocus.map((item) => item.name)
             : ['Social Media', 'Gaming', 'Streaming Video']
         );
+        setHydrated(true);
+
+        if (isManualRefresh) {
+          setSuccess(
+            options?.manualSuccessMessage ?? 'Daily time limit refreshed from server (extension-synced).'
+          );
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load time limits.';
         setError(message);
+        if (/failed to fetch/i.test(message)) {
+          if (user?.id && selectedChildId && typeof window !== 'undefined') {
+            window.localStorage.removeItem(getDraftKey(user.id, selectedChildId));
+          }
+          setDailyLimit(240 * 60);
+          setWeekdayLimit(180 * 60);
+          setWeekendLimit(300 * 60);
+          setSessionLimit(60 * 60);
+          setBreakEvery(45 * 60);
+          setBreakDuration(10 * 60);
+          setFocusMode(false);
+          setDowntimeEnabled(true);
+          setAppLimits(defaultAppLimits);
+          setCategoryLimits(defaultCategoryLimits);
+          setBlockedDuringFocus(['Social Media', 'Gaming', 'Streaming Video']);
+        }
+        setHydrated(true);
       } finally {
         setLoading(false);
+        setDailyRefreshing(false);
       }
-    };
+    },
+    [defaultAppLimits, defaultCategoryLimits, selectedChildId, user?.id]
+  );
 
-    void loadLimits();
-  }, [user?.id, selectedChildId, defaultAppLimits, defaultCategoryLimits]);
+  useEffect(() => {
+    void loadLimitsFromServer();
+  }, [loadLimitsFromServer]);
 
-  const handleSave = async () => {
+  const saveToServer = useCallback(async (silent = false) => {
     if (!user?.id || !selectedChildId) return;
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setSaving(true);
     setError('');
-    setSuccess('');
+    if (!silent) {
+      setSuccess('');
+    }
     try {
       const response = await fetch('/api/timelimits', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
-          parentId: user.id,
           childId: selectedChildId,
           timeLimit: {
             dailyLimit,
@@ -231,14 +392,132 @@ export default function TimeLimitsContent() {
         }
         throw new Error(message);
       }
-      setSuccess('Saved successfully.');
+      setSuccess(silent ? 'Auto-saved to server.' : 'Saved to server.');
+      const draft: TimeLimitsDraft = {
+        dailyLimit,
+        weekdayLimit,
+        weekendLimit,
+        sessionLimit,
+        breakEvery,
+        breakDuration,
+        focusMode,
+        downtimeEnabled,
+        appLimits,
+        categoryLimits,
+        blockedDuringFocus,
+      };
+      writeDraft(user.id, selectedChildId, draft);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save time limits.';
       setError(message);
     } finally {
       setSaving(false);
+      isSavingRef.current = false;
+    }
+  }, [
+    appLimits,
+    blockedDuringFocus,
+    breakDuration,
+    breakEvery,
+    categoryLimits,
+    dailyLimit,
+    downtimeEnabled,
+    focusMode,
+    selectedChildId,
+    sessionLimit,
+    user?.id,
+    weekdayLimit,
+    weekendLimit,
+  ]);
+
+  const handleSave = async () => {
+    await saveToServer(false);
+  };
+
+  const handleDailyRefresh = async () => {
+    if (!selectedChildId) return;
+
+    setDailyRefreshing(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const resetResponse = await fetch('/api/timelimits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          childId: selectedChildId,
+          action: 'RESET_DAILY_TIMER'
+        })
+      });
+
+      if (!resetResponse.ok) {
+        let message = 'Failed to reset daily timer.';
+        try {
+          const payload = await resetResponse.json();
+          if (payload?.error) message = String(payload.error);
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
+      }
+
+      await loadLimitsFromServer({
+        isManualRefresh: true,
+        manualSuccessMessage: 'Daily timer reset and refreshed from server (extension-synced).'
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to reset daily timer.';
+      setError(message);
+      setDailyRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (!user?.id || !selectedChildId || !hydrated) return;
+    const draft: TimeLimitsDraft = {
+      dailyLimit,
+      weekdayLimit,
+      weekendLimit,
+      sessionLimit,
+      breakEvery,
+      breakDuration,
+      focusMode,
+      downtimeEnabled,
+      appLimits,
+      categoryLimits,
+      blockedDuringFocus,
+    };
+    writeDraft(user.id, selectedChildId, draft);
+  }, [
+    appLimits,
+    blockedDuringFocus,
+    breakDuration,
+    breakEvery,
+    categoryLimits,
+    dailyLimit,
+    downtimeEnabled,
+    focusMode,
+    hydrated,
+    selectedChildId,
+    sessionLimit,
+    user?.id,
+    weekdayLimit,
+    weekendLimit,
+  ]);
+
+  useEffect(() => {
+    if (!user?.id || !selectedChildId || !hydrated || loading) return;
+    if (skipNextAutoSaveRef.current) {
+      skipNextAutoSaveRef.current = false;
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      void saveToServer(true);
+    }, 900);
+    return () => window.clearTimeout(timeout);
+  }, [hydrated, loading, saveToServer, selectedChildId, user?.id]);
 
   return (
     <>
@@ -270,27 +549,67 @@ export default function TimeLimitsContent() {
       </div>
 
       <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Daily Time Limit</h3>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-base md:text-lg font-semibold text-gray-900">Daily Time Limit</h3>
+          <button
+            onClick={() => {
+              void handleDailyRefresh();
+            }}
+            disabled={dailyRefreshing || loading || !selectedChildId}
+            className="w-full sm:w-auto rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {dailyRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-2xl md:text-3xl font-bold text-gray-900">{formatMinutes(dailyLimit)}</p>
+            <p className="text-2xl md:text-3xl font-bold text-gray-900">{formatDuration(dailyLimit)}</p>
             <p className="text-sm text-gray-600">Maximum daily screen time</p>
           </div>
           <Clock className="w-10 h-10 md:w-12 md:h-12 text-blue-500" />
         </div>
-        <input
-          type="range"
-          min={minLimit}
-          max={maxLimit}
-          step="30"
-          value={dailyLimit}
-          onChange={(event) => setDailyLimit(Number(event.target.value))}
-          className="time-slider w-full cursor-pointer"
-          style={{ ['--fill' as string]: `${fillPercent}%` }}
-        />
-        <div className="flex justify-between mt-2">
-          <span className="text-xs text-gray-500">30m</span>
-          <span className="text-xs text-gray-500">12h</span>
+        <div className="flex items-end gap-3">
+          <label className="flex-1">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+              Hour
+            </span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={dailyHours}
+              onChange={(event) => updateDailyLimitPart('hours', Number(event.target.value))}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </label>
+          <label className="flex-1">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+              Minute
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={59}
+              step={1}
+              value={dailyMinutes}
+              onChange={(event) => updateDailyLimitPart('minutes', Number(event.target.value))}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </label>
+          <label className="flex-1">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+              Second
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={59}
+              step={1}
+              value={dailySeconds}
+              onChange={(event) => updateDailyLimitPart('seconds', Number(event.target.value))}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </label>
         </div>
       </div>
 
@@ -301,17 +620,17 @@ export default function TimeLimitsContent() {
             <p className="text-sm font-semibold text-gray-900 mb-1">Weekdays</p>
             <p className="text-xs text-gray-500 mb-3">Mon - Fri</p>
             <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-gray-900">{formatMinutes(weekdayLimit)}</span>
+              <span className="text-lg font-semibold text-gray-900">{formatDuration(weekdayLimit)}</span>
               <input
                 type="range"
-                min={30}
-                max={600}
-                step={30}
+                min={30 * 60}
+                max={10 * 60 * 60}
+                step={1}
                 value={weekdayLimit}
                 onChange={(event) => setWeekdayLimit(Number(event.target.value))}
                 className="time-slider w-40 cursor-pointer"
                 style={{
-                  ['--fill' as string]: `${((weekdayLimit - 30) / (600 - 30)) * 100}%`,
+                  ['--fill' as string]: `${((weekdayLimit - 30 * 60) / (10 * 60 * 60 - 30 * 60)) * 100}%`,
                 }}
               />
             </div>
@@ -320,17 +639,17 @@ export default function TimeLimitsContent() {
             <p className="text-sm font-semibold text-gray-900 mb-1">Weekend</p>
             <p className="text-xs text-gray-500 mb-3">Sat - Sun</p>
             <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-gray-900">{formatMinutes(weekendLimit)}</span>
+              <span className="text-lg font-semibold text-gray-900">{formatDuration(weekendLimit)}</span>
               <input
                 type="range"
-                min={30}
-                max={720}
-                step={30}
+                min={30 * 60}
+                max={12 * 60 * 60}
+                step={1}
                 value={weekendLimit}
                 onChange={(event) => setWeekendLimit(Number(event.target.value))}
                 className="time-slider w-40 cursor-pointer"
                 style={{
-                  ['--fill' as string]: `${((weekendLimit - 30) / (720 - 30)) * 100}%`,
+                  ['--fill' as string]: `${((weekendLimit - 30 * 60) / (12 * 60 * 60 - 30 * 60)) * 100}%`,
                 }}
               />
             </div>
@@ -436,17 +755,17 @@ export default function TimeLimitsContent() {
             <p className="text-sm font-semibold text-gray-900 mb-1">Max Session Length</p>
             <p className="text-xs text-gray-500 mb-3">Limit continuous usage</p>
             <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-gray-900">{formatMinutes(sessionLimit)}</span>
+              <span className="text-lg font-semibold text-gray-900">{formatDuration(sessionLimit)}</span>
               <input
                 type="range"
-                min={15}
-                max={180}
-                step={15}
+                min={15 * 60}
+                max={3 * 60 * 60}
+                step={1}
                 value={sessionLimit}
                 onChange={(event) => setSessionLimit(Number(event.target.value))}
                 className="time-slider w-40 cursor-pointer"
                 style={{
-                  ['--fill' as string]: `${((sessionLimit - 15) / (180 - 15)) * 100}%`,
+                  ['--fill' as string]: `${((sessionLimit - 15 * 60) / (3 * 60 * 60 - 15 * 60)) * 100}%`,
                 }}
               />
             </div>
@@ -455,32 +774,32 @@ export default function TimeLimitsContent() {
             <p className="text-sm font-semibold text-gray-900 mb-1">Break Reminders</p>
             <p className="text-xs text-gray-500 mb-3">Encourage healthy breaks</p>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-700">Every {formatMinutes(breakEvery)}</span>
+              <span className="text-sm text-gray-700">Every {formatDuration(breakEvery)}</span>
               <input
                 type="range"
-                min={15}
-                max={120}
-                step={15}
+                min={15 * 60}
+                max={2 * 60 * 60}
+                step={1}
                 value={breakEvery}
                 onChange={(event) => setBreakEvery(Number(event.target.value))}
                 className="time-slider w-32 cursor-pointer"
                 style={{
-                  ['--fill' as string]: `${((breakEvery - 15) / (120 - 15)) * 100}%`,
+                  ['--fill' as string]: `${((breakEvery - 15 * 60) / (2 * 60 * 60 - 15 * 60)) * 100}%`,
                 }}
               />
             </div>
             <div className="flex items-center justify-between mt-3">
-              <span className="text-sm text-gray-700">Break {formatMinutes(breakDuration)}</span>
+              <span className="text-sm text-gray-700">Break {formatDuration(breakDuration)}</span>
               <input
                 type="range"
-                min={5}
-                max={30}
-                step={5}
+                min={5 * 60}
+                max={30 * 60}
+                step={1}
                 value={breakDuration}
                 onChange={(event) => setBreakDuration(Number(event.target.value))}
                 className="time-slider w-32 cursor-pointer"
                 style={{
-                  ['--fill' as string]: `${((breakDuration - 5) / (30 - 5)) * 100}%`,
+                  ['--fill' as string]: `${((breakDuration - 5 * 60) / (30 * 60 - 5 * 60)) * 100}%`,
                 }}
               />
             </div>

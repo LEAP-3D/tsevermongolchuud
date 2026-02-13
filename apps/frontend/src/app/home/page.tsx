@@ -27,6 +27,19 @@ const QUICK_PROMPTS = [
   "What limits should I adjust this week?",
 ];
 
+type AssistantAction =
+  | { type: "BLOCK_DOMAIN"; childId?: number; childName?: string; domain?: string }
+  | { type: "BLOCK_CATEGORY"; childId?: number; childName?: string; categoryName?: string }
+  | { type: "SET_DAILY_LIMIT"; childId?: number; childName?: string; minutes?: number }
+  | { type: "SET_SESSION_LIMIT"; childId?: number; childName?: string; minutes?: number };
+
+const describeAction = (action: AssistantAction) => {
+  if (action.type === "BLOCK_DOMAIN") return `Block domain: ${action.domain ?? "unknown"}`;
+  if (action.type === "BLOCK_CATEGORY") return `Block category: ${action.categoryName ?? "unknown"}`;
+  if (action.type === "SET_DAILY_LIMIT") return `Set daily limit: ${action.minutes ?? "?"}m`;
+  return `Set session limit: ${action.minutes ?? "?"}m`;
+};
+
 export default function HomeDashboard() {
   const { user, loading: authLoading } = useAuthUser();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -53,34 +66,140 @@ export default function HomeDashboard() {
     },
   ]);
   const [chatInput, setChatInput] = useState("");
+  const [aiThinking, setAiThinking] = useState(false);
+  const [pendingActions, setPendingActions] = useState<AssistantAction[]>([]);
 
-  const sendMessage = (override?: string) => {
+  const sendMessage = async (override?: string) => {
     const nextText = (override ?? chatInput).trim();
-    if (!nextText) return;
+    if (!nextText || !user?.id || aiThinking) return;
 
     const userMessage: ChatMessage = {
       id: Date.now(),
       sender: "user",
       text: nextText,
     };
-    setChatMessages((prev) => [...prev, userMessage]);
+    const historySnapshot = [...chatMessages, userMessage].slice(-12).map((message) => ({
+      sender: message.sender,
+      text: message.text,
+    }));
 
-    setTimeout(() => {
-      const aiResponses = [
-        "Based on the recent activity, Emma has been browsing educational content for 2.5 hours today, which is great! Oliver spent 45 minutes on gaming sites, which is within the healthy limit you've set.",
-        "I have analyzed the suspicious content flagged earlier. It appears to be a social media discussion that mentioned mature topics. I recommend reviewing it together with your child to provide context and guidance.",
-        "Your children's safety scores are both above 85%, which is excellent. The main areas to watch are late-night usage and ensure gaming time doesn't exceed the 2-hour daily limit.",
-        "I can help you set up better time limits. Would you like me to suggest an age-appropriate schedule based on Emma and Oliver's ages?",
-      ];
+    setChatMessages((prev) => [...prev, userMessage]);
+    setChatInput("");
+    setAiThinking(true);
+
+    try {
+      const response = await fetch("/api/ai/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parentId: user.id,
+          selectedChildId,
+          message: nextText,
+          chatHistory: historySnapshot,
+        }),
+      });
+
+      if (!response.ok) {
+        let serverError = "AI assistant request failed.";
+        try {
+          const payload = (await response.json()) as { error?: string };
+          if (payload?.error) {
+            serverError = payload.error;
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(serverError);
+      }
+
+      const payload = (await response.json()) as { reply?: string };
       const aiMessage: ChatMessage = {
         id: Date.now() + 1,
         sender: "ai",
-        text: aiResponses[Math.floor(Math.random() * aiResponses.length)],
+        text: payload.reply ?? "I could not generate a response right now. Please try again.",
       };
       setChatMessages((prev) => [...prev, aiMessage]);
-    }, 1000);
+      const candidateActions = (payload as { pendingActions?: AssistantAction[] }).pendingActions;
+      const needsConfirmation = Boolean(
+        (payload as { requiresConfirmation?: boolean }).requiresConfirmation,
+      );
+      if (needsConfirmation && Array.isArray(candidateActions) && candidateActions.length > 0) {
+        setPendingActions(candidateActions);
+      } else {
+        setPendingActions([]);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "AI assistant request failed. Please try again.";
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          sender: "ai",
+          text: `I hit an error: ${message}`,
+        },
+      ]);
+      setPendingActions([]);
+    } finally {
+      setAiThinking(false);
+    }
+  };
 
-    setChatInput("");
+  const confirmPendingActions = async () => {
+    if (!user?.id || aiThinking || pendingActions.length === 0) return;
+    setAiThinking(true);
+    try {
+      const response = await fetch("/api/ai/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parentId: user.id,
+          selectedChildId,
+          confirmActions: true,
+          actionsToConfirm: pendingActions,
+        }),
+      });
+      if (!response.ok) {
+        let serverError = "Failed to apply confirmed actions.";
+        try {
+          const payload = (await response.json()) as { error?: string };
+          if (payload?.error) {
+            serverError = payload.error;
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(serverError);
+      }
+      const payload = (await response.json()) as { reply?: string };
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          sender: "ai",
+          text: payload.reply ?? "Confirmed actions have been applied.",
+        },
+      ]);
+      setPendingActions([]);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to apply confirmed actions.";
+      setChatMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, sender: "ai", text: `I hit an error: ${message}` },
+      ]);
+    } finally {
+      setAiThinking(false);
+    }
+  };
+
+  const cancelPendingActions = () => {
+    if (pendingActions.length === 0) return;
+    setPendingActions([]);
+    setChatMessages((prev) => [
+      ...prev,
+      { id: Date.now() + 1, sender: "ai", text: "Pending actions canceled. No changes were applied." },
+    ]);
   };
 
   const formatMinutes = (minutesValue: number | null) => {
@@ -352,8 +471,16 @@ export default function HomeDashboard() {
           messages={chatMessages}
           chatInput={chatInput}
           onChangeInput={setChatInput}
-          onSendMessage={sendMessage}
+          onSendMessage={(text) => {
+            void sendMessage(text);
+          }}
           quickPrompts={QUICK_PROMPTS}
+          isThinking={aiThinking}
+          pendingActionPreview={pendingActions.map(describeAction)}
+          onConfirmActions={() => {
+            void confirmPendingActions();
+          }}
+          onCancelActions={cancelPendingActions}
         />
       </div>
     </TeslaAuthBackdrop>

@@ -1,6 +1,8 @@
 const BASE_URL = "http://localhost:5000/api";
-const PING_INTERVAL_MS = 60000; // Сервер рүү 60 сек тутам batch илгээх
-const TICK_INTERVAL_MS = 5000; // 5 сек тутам локалд хугацаа нэмэх
+const PING_INTERVAL_MS = 1000; // Сервер рүү 1 сек тутам илгээж лимитийг хурдан мөрдөнө
+const TICK_INTERVAL_MS = 1000; // 1 сек тутам локалд хугацаа нэмэх
+const BLOCKED_PAGE_URL = chrome.runtime.getURL("blocked.html");
+const LOGIN_REQUIRED_PAGE_URL = chrome.runtime.getURL("login_required.html");
 
 let trackingTimer = null; // Тоолуурын ID
 let currentTabId = null; // Одоогийн идэвхтэй таб ID
@@ -10,6 +12,7 @@ let accumulatedMs = 0; // Хуримтлагдсан хугацаа
 let lastTickAt = 0; // Сүүлийн tick цаг
 let lastFlushAt = 0; // Сүүлийн сервер рүү илгээсэн цаг
 let isFlushing = false;
+let parentOverrideUntilCache = 0;
 
 console.log("🚀 Background Monitor Loaded (Domain-Based Tracking)");
 
@@ -23,9 +26,81 @@ function getDomain(url) {
   }
 }
 
+async function rememberAndBlock(tabId, url) {
+  await chrome.storage.local.set({ lastBlockedUrl: url });
+  await chrome.tabs.update(tabId, { url: BLOCKED_PAGE_URL });
+}
+
+async function isParentOverrideActive() {
+  if (parentOverrideUntilCache > Date.now()) {
+    return true;
+  }
+
+  const { parentOverrideUntil } = await chrome.storage.local.get([
+    "parentOverrideUntil",
+  ]);
+  const until = Number(parentOverrideUntil);
+  if (!Number.isFinite(until) || until <= Date.now()) {
+    if (parentOverrideUntil) {
+      await chrome.storage.local.remove(["parentOverrideUntil"]);
+    }
+    parentOverrideUntilCache = 0;
+    return false;
+  }
+  parentOverrideUntilCache = until;
+  return true;
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type !== "PARENT_UNBLOCK_OVERRIDE") {
+    return;
+  }
+
+  const url = typeof message?.url === "string" ? message.url : "";
+  const durationMs = Number(message?.durationMs);
+  const overrideDurationMs =
+    Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 15 * 60 * 1000;
+  const until = Date.now() + overrideDurationMs;
+
+  parentOverrideUntilCache = until;
+
+  (async () => {
+    await chrome.storage.local.set({ parentOverrideUntil: until });
+    await chrome.storage.local.remove(["lastBlockedUrl"]);
+
+    const tabId = sender?.tab?.id;
+    if (tabId && url.startsWith("http")) {
+      await chrome.tabs.update(tabId, { url });
+    }
+
+    sendResponse({ success: true, until });
+  })().catch((error) => {
+    console.error("Parent unblock override failed:", error);
+    sendResponse({ success: false });
+  });
+
+  return true;
+});
+
+async function checkAccessForUrl(childId, url) {
+  try {
+    const res = await fetch(`${BASE_URL}/check-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ childId, url, dryRun: true }),
+    });
+    const data = await res.json();
+    return data?.action === "BLOCK" ? "BLOCK" : "ALLOWED";
+  } catch (error) {
+    console.warn("⚠️ Live policy check failed:", error?.message ?? error);
+    return "UNKNOWN";
+  }
+}
+
 // 1. Browser эхлэх үед
 chrome.runtime.onStartup.addListener(() => {
-  chrome.storage.local.remove("activeChildId");
+  parentOverrideUntilCache = 0;
+  chrome.storage.local.remove(["activeChildId", "lastBlockedUrl", "parentOverrideUntil"]);
 });
 
 // 2. Navigation Monitor (Сайт руу орох үед БЛОК хийх эсэхийг шалгах)
@@ -36,7 +111,17 @@ chrome.webNavigation.onBeforeNavigate.addListener(
     if (!url.startsWith("http")) return;
 
     const storage = await chrome.storage.local.get(["activeChildId"]);
-    if (!storage.activeChildId) return;
+    if (!storage.activeChildId) {
+      chrome.tabs.update(details.tabId, {
+        url: LOGIN_REQUIRED_PAGE_URL,
+      });
+      return;
+    }
+
+    const overrideActive = await isParentOverrideActive();
+    if (overrideActive) {
+      return;
+    }
 
     try {
       const res = await fetch(`${BASE_URL}/check-url`, {
@@ -46,9 +131,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(
       });
       const data = await res.json();
       if (data.action === "BLOCK") {
-        chrome.tabs.update(details.tabId, {
-          url: chrome.runtime.getURL("blocked.html"),
-        });
+        await rememberAndBlock(details.tabId, url);
       }
     } catch (e) {
       console.error("Check URL failed:", e);
@@ -93,6 +176,15 @@ async function handleTabChange(newTabId) {
   if (!tab || !tab.url || !tab.url.startsWith("http")) {
     console.log("⏸️ Tracking Paused (Non-http page)");
     await stopTracking();
+    return;
+  }
+
+  const storage = await chrome.storage.local.get(["activeChildId"]);
+  if (!storage.activeChildId) {
+    await stopTracking();
+    chrome.tabs.update(newTabId, {
+      url: LOGIN_REQUIRED_PAGE_URL,
+    });
     return;
   }
 
@@ -161,6 +253,23 @@ async function tick() {
 
   currentUrl = currentTab.url;
 
+  const storage = await chrome.storage.local.get(["activeChildId"]);
+  if (!storage.activeChildId) {
+    await stopTracking();
+    await chrome.tabs.update(currentTabId, { url: LOGIN_REQUIRED_PAGE_URL });
+    return;
+  }
+
+  const overrideActive = await isParentOverrideActive();
+  if (!overrideActive) {
+    const livePolicy = await checkAccessForUrl(storage.activeChildId, currentUrl);
+    if (livePolicy === "BLOCK") {
+      await stopTracking();
+      await rememberAndBlock(currentTabId, currentUrl);
+      return;
+    }
+  }
+
   if (now - lastFlushAt >= PING_INTERVAL_MS) {
     await flushPending("interval");
   }
@@ -203,8 +312,11 @@ async function sendPing(url, tabId, durationSeconds, reason) {
     const data = await response.json();
 
     if (data.status === "BLOCK") {
-      await stopTracking();
-      chrome.tabs.update(tabId, { url: chrome.runtime.getURL("blocked.html") });
+      const overrideActive = await isParentOverrideActive();
+      if (!overrideActive) {
+        await stopTracking();
+        await rememberAndBlock(tabId, url);
+      }
     }
 
     return true;

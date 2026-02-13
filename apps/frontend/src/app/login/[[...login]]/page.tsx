@@ -60,7 +60,7 @@ export default function LoginPage() {
         throw new Error(message);
       }
 
-      const payload: { user?: { id: number; email: string; name?: string | null } } =
+      const payload: { user?: { id: number; email: string; name?: string | null; expiresAt: number } } =
         await response.json();
       if (payload?.user) {
         setStoredUser(payload.user);

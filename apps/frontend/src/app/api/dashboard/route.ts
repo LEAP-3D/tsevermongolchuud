@@ -1,6 +1,7 @@
 /* eslint-disable max-lines */
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
 
 const UB_TIMEZONE = "Asia/Ulaanbaatar";
 
@@ -99,18 +100,18 @@ const secondsToMinutes = (seconds: number) => {
 };
 
 export async function GET(req: Request) {
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    return unauthorizedJson();
+  }
+
   const { searchParams } = new URL(req.url);
   const childIdParam = searchParams.get("childId");
   const range = normalizeRange(searchParams.get("range"));
-  const parentIdParam = searchParams.get("parentId");
 
   const childId = childIdParam ? Number.parseInt(childIdParam, 10) : null;
   if (!childId || Number.isNaN(childId)) {
     return NextResponse.json({ error: "Invalid childId" }, { status: 400 });
-  }
-  const parentId = parentIdParam ? Number.parseInt(parentIdParam, 10) : null;
-  if (!parentId || Number.isNaN(parentId)) {
-    return NextResponse.json({ error: "Invalid parentId" }, { status: 400 });
   }
 
   const child = await prisma.child.findUnique({
@@ -118,7 +119,7 @@ export async function GET(req: Request) {
     select: { id: true, parentId: true },
   });
 
-  if (!child || child.parentId !== parentId) {
+  if (!child || child.parentId !== session.userId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

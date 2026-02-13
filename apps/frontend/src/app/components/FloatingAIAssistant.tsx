@@ -10,6 +10,10 @@ type FloatingAIAssistantProps = {
   onChangeInput: (value: string) => void;
   onSendMessage: (override?: string) => void;
   quickPrompts: string[];
+  isThinking: boolean;
+  pendingActionPreview: string[];
+  onConfirmActions: () => void;
+  onCancelActions: () => void;
 };
 
 export default function FloatingAIAssistant({
@@ -18,6 +22,10 @@ export default function FloatingAIAssistant({
   onChangeInput,
   onSendMessage,
   quickPrompts,
+  isThinking,
+  pendingActionPreview,
+  onConfirmActions,
+  onCancelActions,
 }: FloatingAIAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -103,6 +111,30 @@ export default function FloatingAIAssistant({
           </div>
 
           <div className="rounded-b-2xl border-t border-slate-200 bg-white p-3">
+            {pendingActionPreview.length > 0 && (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-2.5">
+                <p className="text-xs font-semibold text-amber-800">Pending confirmation</p>
+                <p className="mt-1 text-xs text-amber-700">{pendingActionPreview.join(" | ")}</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={onConfirmActions}
+                    disabled={isThinking}
+                    className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCancelActions}
+                    disabled={isThinking}
+                    className="rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2">
               <textarea
                 value={chatInput}
@@ -120,7 +152,7 @@ export default function FloatingAIAssistant({
               <button
                 type="button"
                 onClick={() => onSendMessage()}
-                disabled={!chatInput.trim()}
+                disabled={!chatInput.trim() || isThinking}
                 className="inline-flex h-auto items-center justify-center rounded-xl bg-indigo-500 px-3 text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 <SendHorizontal className="h-4 w-4" />

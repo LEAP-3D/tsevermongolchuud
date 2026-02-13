@@ -1,4 +1,103 @@
 const prisma = require("./prisma");
+const TABLE_NOT_FOUND_CODE = "P2021";
+const DEFAULT_TIME_LIMIT_SECONDS = {
+  dailyLimit: 240 * 60,
+  weekdayLimit: 180 * 60,
+  weekendLimit: 300 * 60,
+  sessionLimit: 60 * 60,
+  breakEvery: 45 * 60,
+  breakDuration: 10 * 60,
+};
+const TIME_LIMIT_DDL_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS "ChildTimeLimit" (
+    "id" SERIAL PRIMARY KEY,
+    "childId" INTEGER NOT NULL,
+    "dailyLimit" INTEGER NOT NULL DEFAULT 14400,
+    "weekdayLimit" INTEGER NOT NULL DEFAULT 10800,
+    "weekendLimit" INTEGER NOT NULL DEFAULT 18000,
+    "sessionLimit" INTEGER NOT NULL DEFAULT 3600,
+    "breakEvery" INTEGER NOT NULL DEFAULT 2700,
+    "breakDuration" INTEGER NOT NULL DEFAULT 600,
+    "focusMode" BOOLEAN NOT NULL DEFAULT false,
+    "downtimeEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS "ChildAppLimit" (
+    "id" SERIAL PRIMARY KEY,
+    "childId" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "minutes" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS "ChildCategoryLimit" (
+    "id" SERIAL PRIMARY KEY,
+    "childId" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "minutes" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS "ChildAlwaysAllowed" (
+    "id" SERIAL PRIMARY KEY,
+    "childId" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS "ChildFocusBlocked" (
+    "id" SERIAL PRIMARY KEY,
+    "childId" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChildTimeLimit_childId_key" ON "ChildTimeLimit"("childId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChildAppLimit_childId_name_key" ON "ChildAppLimit"("childId", "name")`,
+  `CREATE INDEX IF NOT EXISTS "ChildAppLimit_childId_idx" ON "ChildAppLimit"("childId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChildCategoryLimit_childId_name_key" ON "ChildCategoryLimit"("childId", "name")`,
+  `CREATE INDEX IF NOT EXISTS "ChildCategoryLimit_childId_idx" ON "ChildCategoryLimit"("childId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChildAlwaysAllowed_childId_name_key" ON "ChildAlwaysAllowed"("childId", "name")`,
+  `CREATE INDEX IF NOT EXISTS "ChildAlwaysAllowed_childId_idx" ON "ChildAlwaysAllowed"("childId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChildFocusBlocked_childId_name_key" ON "ChildFocusBlocked"("childId", "name")`,
+  `CREATE INDEX IF NOT EXISTS "ChildFocusBlocked_childId_idx" ON "ChildFocusBlocked"("childId")`,
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChildTimeLimit_childId_fkey') THEN
+      ALTER TABLE "ChildTimeLimit" ADD CONSTRAINT "ChildTimeLimit_childId_fkey"
+      FOREIGN KEY ("childId") REFERENCES "Child"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChildAppLimit_childId_fkey') THEN
+      ALTER TABLE "ChildAppLimit" ADD CONSTRAINT "ChildAppLimit_childId_fkey"
+      FOREIGN KEY ("childId") REFERENCES "Child"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChildCategoryLimit_childId_fkey') THEN
+      ALTER TABLE "ChildCategoryLimit" ADD CONSTRAINT "ChildCategoryLimit_childId_fkey"
+      FOREIGN KEY ("childId") REFERENCES "Child"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChildAlwaysAllowed_childId_fkey') THEN
+      ALTER TABLE "ChildAlwaysAllowed" ADD CONSTRAINT "ChildAlwaysAllowed_childId_fkey"
+      FOREIGN KEY ("childId") REFERENCES "Child"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChildFocusBlocked_childId_fkey') THEN
+      ALTER TABLE "ChildFocusBlocked" ADD CONSTRAINT "ChildFocusBlocked_childId_fkey"
+      FOREIGN KEY ("childId") REFERENCES "Child"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+];
 
 // Улаанбаатарын цагаар "Өнөөдөр"-ийн огноог UTC 00:00 дээр тогтвортой авна
 // Энэ нь DB-ийн DATE талбарт зөв өдөр буухад тусална.
@@ -24,6 +123,153 @@ function getUBCurrentTime() {
     timeZone: "Asia/Ulaanbaatar",
   });
   return new Date(ubString);
+}
+
+function toSafeSeconds(value, fallbackSeconds) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackSeconds;
+  return Math.max(1, Math.round(numeric));
+}
+
+function isLikelyLegacyMinuteRow(row) {
+  return (
+    row.dailyLimit >= 30 &&
+    row.dailyLimit <= 720 &&
+    row.dailyLimit % 30 === 0 &&
+    row.weekdayLimit >= 30 &&
+    row.weekdayLimit <= 600 &&
+    row.weekdayLimit % 30 === 0 &&
+    row.weekendLimit >= 30 &&
+    row.weekendLimit <= 720 &&
+    row.weekendLimit % 30 === 0 &&
+    row.sessionLimit >= 15 &&
+    row.sessionLimit <= 180 &&
+    row.sessionLimit % 15 === 0 &&
+    row.breakEvery >= 15 &&
+    row.breakEvery <= 120 &&
+    row.breakEvery % 15 === 0 &&
+    row.breakDuration >= 5 &&
+    row.breakDuration <= 30 &&
+    row.breakDuration % 5 === 0
+  );
+}
+
+function normalizeTimeLimitRow(row) {
+  return {
+    ...row,
+    dailyLimit: toSafeSeconds(row.dailyLimit, DEFAULT_TIME_LIMIT_SECONDS.dailyLimit),
+    weekdayLimit: toSafeSeconds(row.weekdayLimit, DEFAULT_TIME_LIMIT_SECONDS.weekdayLimit),
+    weekendLimit: toSafeSeconds(row.weekendLimit, DEFAULT_TIME_LIMIT_SECONDS.weekendLimit),
+    sessionLimit: toSafeSeconds(row.sessionLimit, DEFAULT_TIME_LIMIT_SECONDS.sessionLimit),
+    breakEvery: toSafeSeconds(row.breakEvery, DEFAULT_TIME_LIMIT_SECONDS.breakEvery),
+    breakDuration: toSafeSeconds(row.breakDuration, DEFAULT_TIME_LIMIT_SECONDS.breakDuration),
+  };
+}
+
+function isTableMissingError(error) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === TABLE_NOT_FOUND_CODE
+  );
+}
+
+async function ensureTimeLimitTables() {
+  for (const statement of TIME_LIMIT_DDL_STATEMENTS) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+}
+
+async function ensureChildTimeLimitRow(numericChildId) {
+  let row = await prisma.childTimeLimit.findUnique({
+    where: { childId: numericChildId },
+    select: {
+      childId: true,
+      dailyLimit: true,
+      weekdayLimit: true,
+      weekendLimit: true,
+      sessionLimit: true,
+      breakEvery: true,
+      breakDuration: true,
+    },
+  });
+
+  if (!row) {
+    row = await prisma.childTimeLimit.upsert({
+      where: { childId: numericChildId },
+      update: {},
+      create: {
+        childId: numericChildId,
+        dailyLimit: DEFAULT_TIME_LIMIT_SECONDS.dailyLimit,
+        weekdayLimit: DEFAULT_TIME_LIMIT_SECONDS.weekdayLimit,
+        weekendLimit: DEFAULT_TIME_LIMIT_SECONDS.weekendLimit,
+        sessionLimit: DEFAULT_TIME_LIMIT_SECONDS.sessionLimit,
+        breakEvery: DEFAULT_TIME_LIMIT_SECONDS.breakEvery,
+        breakDuration: DEFAULT_TIME_LIMIT_SECONDS.breakDuration,
+        focusMode: false,
+        downtimeEnabled: true,
+      },
+      select: {
+        childId: true,
+        dailyLimit: true,
+        weekdayLimit: true,
+        weekendLimit: true,
+        sessionLimit: true,
+        breakEvery: true,
+        breakDuration: true,
+      },
+    });
+  }
+
+  if (isLikelyLegacyMinuteRow(row)) {
+    row = await prisma.childTimeLimit.update({
+      where: { childId: numericChildId },
+      data: {
+        dailyLimit: row.dailyLimit * 60,
+        weekdayLimit: row.weekdayLimit * 60,
+        weekendLimit: row.weekendLimit * 60,
+        sessionLimit: row.sessionLimit * 60,
+        breakEvery: row.breakEvery * 60,
+        breakDuration: row.breakDuration * 60,
+      },
+      select: {
+        childId: true,
+        dailyLimit: true,
+        weekdayLimit: true,
+        weekendLimit: true,
+        sessionLimit: true,
+        breakEvery: true,
+        breakDuration: true,
+      },
+    });
+  }
+
+  return normalizeTimeLimitRow(row);
+}
+
+async function fetchGlobalDailyLimitStatus(numericChildId, today) {
+  const [limitRow, usageRows] = await Promise.all([
+    ensureChildTimeLimitRow(numericChildId),
+    prisma.dailyUsage.findMany({
+      where: { childId: numericChildId, date: today },
+      select: { duration: true },
+    }),
+  ]);
+
+  const usedSeconds = usageRows.reduce((sum, row) => sum + Number(row.duration ?? 0), 0);
+
+  const limitSeconds = toSafeSeconds(
+    limitRow.dailyLimit,
+    DEFAULT_TIME_LIMIT_SECONDS.dailyLimit,
+  );
+  const isBlocked = usedSeconds >= limitSeconds;
+  return {
+    isBlocked,
+    usedSeconds,
+    limitSeconds,
+    remainingSeconds: Math.max(0, limitSeconds - usedSeconds),
+  };
 }
 
 async function checkTimeLimit(childId, categoryId) {
@@ -84,8 +330,24 @@ async function checkTimeLimit(childId, categoryId) {
   };
 }
 
+async function checkGlobalDailyLimit(childId) {
+  const numericChildId = Number(childId);
+  const today = getUBTodayDate();
+
+  try {
+    return await fetchGlobalDailyLimitStatus(numericChildId, today);
+  } catch (error) {
+    if (isTableMissingError(error)) {
+      await ensureTimeLimitTables();
+      return await fetchGlobalDailyLimitStatus(numericChildId, today);
+    }
+    throw error;
+  }
+}
+
 module.exports = {
   getUBTodayDate,
   getUBCurrentTime,
   checkTimeLimit,
+  checkGlobalDailyLimit,
 };

@@ -2,12 +2,13 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../lib/prisma");
 const { classifyWebsite } = require("../lib/ai");
-const { checkTimeLimit } = require("../lib/timeUtils"); // Өмнө бичсэн цаг шалгах функц
+const { checkTimeLimit, checkGlobalDailyLimit } = require("../lib/timeUtils");
 
 // POST: /api/check-url
 router.post("/", async (req, res, next) => {
   try {
-    const { childId, url } = req.body;
+    const { childId, url, dryRun } = req.body;
+    const isDryRun = Boolean(dryRun);
 
     if (!childId || !url) {
       return res.status(400).json({ action: "ALLOWED", error: "Missing data" });
@@ -134,8 +135,15 @@ router.post("/", async (req, res, next) => {
       }
     }
 
-    // 5. ALERT SYSTEM
-    if (action === "BLOCK" && catalogEntry.safetyScore < 50) {
+    // Шат 5: ГЛОБАЛ ӨДРИЙН ЛИМИТ (Бүх сайт дээр үйлчилнэ)
+    const globalDailyStatus = await checkGlobalDailyLimit(Number(childId));
+    if (globalDailyStatus.isBlocked) {
+      action = "BLOCK";
+      blockReason = "DAILY_LIMIT_EXCEEDED";
+    }
+
+    // 6. ALERT SYSTEM
+    if (!isDryRun && action === "BLOCK" && catalogEntry.safetyScore < 50) {
       await prisma.alert
         .create({
           data: {
@@ -148,23 +156,25 @@ router.post("/", async (req, res, next) => {
         .catch((e) => console.error("Alert error:", e));
     }
 
-    // 6. HISTORY LOGGING
-    const historyAction = action === "BLOCK" ? "BLOCKED" : "ALLOWED";
+    // 7. HISTORY LOGGING
+    if (!isDryRun) {
+      const historyAction = action === "BLOCK" ? "BLOCKED" : "ALLOWED";
 
-    prisma.history
-      .create({
-        data: {
-          childId: Number(childId),
-          fullUrl: url,
-          domain: domain,
-          categoryName: catalogEntry.categoryName,
-          actionTaken: historyAction,
-          duration: 0, // Зөвхөн хандалт, хугацааг trackTime-д тооцно
-        },
-      })
-      .catch((err) => console.error("History Save Error:", err));
+      prisma.history
+        .create({
+          data: {
+            childId: Number(childId),
+            fullUrl: url,
+            domain: domain,
+            categoryName: catalogEntry.categoryName,
+            actionTaken: historyAction,
+            duration: 0, // Зөвхөн хандалт, хугацааг trackTime-д тооцно
+          },
+        })
+        .catch((err) => console.error("History Save Error:", err));
+    }
 
-    // 7. Хариу буцаах
+    // 8. Хариу буцаах
     return res.json({ action });
   } catch (error) {
     next(error);

@@ -5,6 +5,7 @@ const {
   getUBTodayDate,
   getUBCurrentTime,
   checkTimeLimit,
+  checkGlobalDailyLimit,
 } = require("../lib/timeUtils");
 
 // Default increment (секунд). Extension богино хугацаа илгээж болно.
@@ -103,6 +104,15 @@ router.post("/", async (req, res) => {
     });
 
     // 4. Лимит шалгах
+    const globalStatus = await checkGlobalDailyLimit(Number(childId));
+    if (globalStatus.isBlocked) {
+      return res.json({
+        status: "BLOCK",
+        reason: "DAILY_LIMIT_EXCEEDED",
+        category: categoryName,
+      });
+    }
+
     const timeStatus = await checkTimeLimit(Number(childId), category.id);
 
     if (timeStatus.isBlocked) {
