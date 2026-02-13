@@ -258,8 +258,8 @@ const executeActions = async (
         create: {
           domain: rawDomain,
           categoryName: "Custom",
-          safetyScore: 0,
-          tags: [],
+          safetyScore: 100,
+          tags: ["ai-action"],
           updatedAt: new Date(),
         },
       });

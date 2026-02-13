@@ -1,5 +1,6 @@
 const API_BASE = "http://localhost:5000/api/auth";
 let remainingTimer = null;
+const popupStatusEl = document.getElementById("popup-status");
 
 // DOM Elements
 const views = {
@@ -12,8 +13,24 @@ const views = {
 
 let selectedChildTemp = null; // PIN хийхээр сонгосон хүүхэд
 
+function setGlobalStatus(message, isError = false) {
+  if (!popupStatusEl) return;
+  popupStatusEl.innerText = message || "";
+  popupStatusEl.classList.toggle("error", Boolean(isError && message));
+}
+
+function setButtonBusy(buttonEl, busy, busyLabel) {
+  if (!buttonEl) return;
+  if (!buttonEl.dataset.defaultLabel) {
+    buttonEl.dataset.defaultLabel = buttonEl.innerText;
+  }
+  buttonEl.disabled = busy;
+  buttonEl.innerText = busy ? busyLabel : buttonEl.dataset.defaultLabel;
+}
+
 // Init
 document.addEventListener("DOMContentLoaded", async () => {
+  setGlobalStatus("Loading session...");
   const data = await chrome.storage.local.get([
     "parentToken",
     "activeChildId",
@@ -32,15 +49,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderChildList(data.childrenList || []);
     showView("childSelect");
   }
+  setGlobalStatus("");
 });
 
 // --- ACTIONS ---
 
 // 1. Parent Login
 document.getElementById("btn-p-login").onclick = async () => {
+  const buttonEl = document.getElementById("btn-p-login");
   const email = document.getElementById("p-email").value;
   const password = document.getElementById("p-pass").value;
   const errBox = document.getElementById("err-login");
+  errBox.innerText = "";
+  setGlobalStatus("Signing in...");
+  setButtonBusy(buttonEl, true, "Signing in...");
 
   try {
     const res = await fetch(`${API_BASE}/parent-login`, {
@@ -57,11 +79,16 @@ document.getElementById("btn-p-login").onclick = async () => {
       });
       renderChildList(data.children);
       showView("childSelect");
+      setGlobalStatus("");
     } else {
       errBox.innerText = data.message || "Нэвтрэх бүтсэнгүй";
+      setGlobalStatus("Login failed.", true);
     }
   } catch (e) {
     errBox.innerText = "Сервертэй холбогдож чадсангүй";
+    setGlobalStatus("Server connection failed.", true);
+  } finally {
+    setButtonBusy(buttonEl, false, "");
   }
 };
 
@@ -85,8 +112,16 @@ function renderChildList(children) {
 }
 
 document.getElementById("btn-verify-pin").onclick = async () => {
+  const buttonEl = document.getElementById("btn-verify-pin");
   const pin = document.getElementById("child-pin").value;
   const errBox = document.getElementById("err-pin");
+  errBox.innerText = "";
+  if (!selectedChildTemp?.id) {
+    errBox.innerText = "Хүүхэд сонгоно уу";
+    return;
+  }
+  setGlobalStatus("Verifying PIN...");
+  setButtonBusy(buttonEl, true, "Verifying...");
 
   try {
     const res = await fetch(`${API_BASE}/verify-pin`, {
@@ -105,6 +140,7 @@ document.getElementById("btn-verify-pin").onclick = async () => {
         selectedChildTemp.name;
       showView("dashboard");
       startRemainingPolling(selectedChildTemp.id);
+      setGlobalStatus("");
 
       // "Login Required" хуудсыг хаах эсвэл refresh хийх
       chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -112,9 +148,13 @@ document.getElementById("btn-verify-pin").onclick = async () => {
       });
     } else {
       errBox.innerText = "PIN код буруу байна";
+      setGlobalStatus("PIN verification failed.", true);
     }
   } catch (e) {
     errBox.innerText = "Алдаа гарлаа";
+    setGlobalStatus("PIN verification failed.", true);
+  } finally {
+    setButtonBusy(buttonEl, false, "");
   }
 };
 
@@ -135,7 +175,8 @@ async function resetDailyTimerFor15Minutes() {
   const password = window.prompt("Enter parent password to reset timer (+15m):");
   if (!password) return;
 
-  if (buttonEl) buttonEl.disabled = true;
+  setButtonBusy(buttonEl, true, "Resetting...");
+  setGlobalStatus("Resetting daily timer...");
   try {
     const res = await fetch(`${API_BASE}/grant-daily-time`, {
       method: "POST",
@@ -150,11 +191,13 @@ async function resetDailyTimerFor15Minutes() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
       if (statusEl) statusEl.innerText = data?.message || "Timer reset failed.";
+      setGlobalStatus("Timer reset failed.", true);
       return;
     }
 
     if (statusEl) statusEl.innerText = "Timer reset: 15 minutes available.";
     await updateRemaining(storage.activeChildId);
+    setGlobalStatus("Daily timer reset applied.");
 
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       if (tabs[0]?.id) {
@@ -163,18 +206,32 @@ async function resetDailyTimerFor15Minutes() {
     });
   } catch {
     if (statusEl) statusEl.innerText = "Server connection failed.";
+    setGlobalStatus("Server connection failed.", true);
   } finally {
-    if (buttonEl) buttonEl.disabled = false;
+    setButtonBusy(buttonEl, false, "");
   }
 }
 
 // 3. Switch User (Logout Child only)
 document.getElementById("btn-switch-user").onclick = () => {
+  const buttonEl = document.getElementById("btn-switch-user");
+  setButtonBusy(buttonEl, true, "Switching...");
+  setGlobalStatus("Switching active child...");
   chrome.storage.local.remove(
-    ["activeChildId", "activeChildName", "lastBlockedUrl", "parentOverrideUntil"],
+    [
+      "activeChildId",
+      "activeChildName",
+      "lastBlockedUrl",
+      "lastBlockReason",
+      "lastBlockSource",
+      "lastPolicyUpdatedAt",
+      "parentOverrideUntil",
+    ],
     () => {
       stopRemainingPolling();
       showView("childSelect");
+      setGlobalStatus("");
+      setButtonBusy(buttonEl, false, "");
       // Reload current tab to force block
       chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         chrome.tabs.reload(tabs[0].id);
@@ -194,7 +251,14 @@ document.getElementById("btn-cancel-logout").onclick = () =>
   showView("childSelect");
 
 document.getElementById("btn-confirm-logout").onclick = async () => {
+  const buttonEl = document.getElementById("btn-confirm-logout");
   const password = document.getElementById("logout-pass").value;
+  if (!password) {
+    document.getElementById("err-logout").innerText = "Нууц үг оруулна уу";
+    return;
+  }
+  setButtonBusy(buttonEl, true, "Logging out...");
+  setGlobalStatus("Logging out...");
   // Password verify API дуудна (Security)
   // ... (API call simulation)
   // if success:
@@ -259,4 +323,8 @@ function showView(viewName) {
   }
   Object.values(views).forEach((el) => el.classList.add("hidden"));
   views[viewName].classList.remove("hidden");
+  if (viewName !== "dashboard") {
+    const statusEl = document.getElementById("reset-status");
+    if (statusEl) statusEl.innerText = "";
+  }
 }

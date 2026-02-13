@@ -26,8 +26,22 @@ function getDomain(url) {
   }
 }
 
-async function rememberAndBlock(tabId, url) {
-  await chrome.storage.local.set({ lastBlockedUrl: url });
+async function rememberAndBlock(tabId, url, policyMeta = {}) {
+  const reason =
+    typeof policyMeta?.reason === "string" && policyMeta.reason
+      ? policyMeta.reason
+      : "UNKNOWN";
+  const source =
+    typeof policyMeta?.source === "string" && policyMeta.source
+      ? policyMeta.source
+      : "SYSTEM";
+
+  await chrome.storage.local.set({
+    lastBlockedUrl: url,
+    lastBlockReason: reason,
+    lastBlockSource: source,
+    lastPolicyUpdatedAt: Date.now(),
+  });
   await chrome.tabs.update(tabId, { url: BLOCKED_PAGE_URL });
 }
 
@@ -66,7 +80,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   (async () => {
     await chrome.storage.local.set({ parentOverrideUntil: until });
-    await chrome.storage.local.remove(["lastBlockedUrl"]);
+    await chrome.storage.local.remove([
+      "lastBlockedUrl",
+      "lastBlockReason",
+      "lastBlockSource",
+      "lastPolicyUpdatedAt",
+    ]);
 
     const tabId = sender?.tab?.id;
     if (tabId && url.startsWith("http")) {
@@ -90,17 +109,32 @@ async function checkAccessForUrl(childId, url) {
       body: JSON.stringify({ childId, url, dryRun: true }),
     });
     const data = await res.json();
-    return data?.action === "BLOCK" ? "BLOCK" : "ALLOWED";
+    return {
+      action: data?.action === "BLOCK" ? "BLOCK" : "ALLOWED",
+      reason: typeof data?.reason === "string" ? data.reason : "UNKNOWN",
+      source: typeof data?.source === "string" ? data.source : "SYSTEM",
+    };
   } catch (error) {
     console.warn("⚠️ Live policy check failed:", error?.message ?? error);
-    return "UNKNOWN";
+    return {
+      action: "UNKNOWN",
+      reason: "CHECK_FAILED",
+      source: "SYSTEM",
+    };
   }
 }
 
 // 1. Browser эхлэх үед
 chrome.runtime.onStartup.addListener(() => {
   parentOverrideUntilCache = 0;
-  chrome.storage.local.remove(["activeChildId", "lastBlockedUrl", "parentOverrideUntil"]);
+  chrome.storage.local.remove([
+    "activeChildId",
+    "lastBlockedUrl",
+    "lastBlockReason",
+    "lastBlockSource",
+    "lastPolicyUpdatedAt",
+    "parentOverrideUntil",
+  ]);
 });
 
 // 2. Navigation Monitor (Сайт руу орох үед БЛОК хийх эсэхийг шалгах)
@@ -131,7 +165,10 @@ chrome.webNavigation.onBeforeNavigate.addListener(
       });
       const data = await res.json();
       if (data.action === "BLOCK") {
-        await rememberAndBlock(details.tabId, url);
+        await rememberAndBlock(details.tabId, url, {
+          reason: data?.reason,
+          source: data?.source,
+        });
       }
     } catch (e) {
       console.error("Check URL failed:", e);
@@ -263,9 +300,9 @@ async function tick() {
   const overrideActive = await isParentOverrideActive();
   if (!overrideActive) {
     const livePolicy = await checkAccessForUrl(storage.activeChildId, currentUrl);
-    if (livePolicy === "BLOCK") {
+    if (livePolicy.action === "BLOCK") {
       await stopTracking();
-      await rememberAndBlock(currentTabId, currentUrl);
+      await rememberAndBlock(currentTabId, currentUrl, livePolicy);
       return;
     }
   }
@@ -315,7 +352,10 @@ async function sendPing(url, tabId, durationSeconds, reason) {
       const overrideActive = await isParentOverrideActive();
       if (!overrideActive) {
         await stopTracking();
-        await rememberAndBlock(tabId, url);
+        await rememberAndBlock(tabId, url, {
+          reason: data?.reason,
+          source: "SYSTEM",
+        });
       }
     }
 

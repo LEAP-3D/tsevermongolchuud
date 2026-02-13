@@ -177,6 +177,18 @@
         color: var(--subtext);
         text-align: center;
       }
+
+      .global-status {
+        margin-top: 10px;
+        min-height: 16px;
+        font-size: 12px;
+        color: var(--subtext);
+        text-align: center;
+      }
+
+      .global-status.error {
+        color: var(--danger);
+      }
     </style>
   </head>
 
@@ -237,6 +249,8 @@
           <button id="btn-cancel-logout" class="secondary">Болих</button>
           <p class="error" id="err-logout"></p>
         </div>
+
+        <p id="popup-status" class="global-status"></p>
       </div>
     </div>
 

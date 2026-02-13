@@ -68,6 +68,14 @@
         color: var(--subtext);
       }
 
+      .status.error {
+        color: var(--danger);
+      }
+
+      .status.success {
+        color: var(--success, #34c759);
+      }
+
       .unblock-card {
         margin-top: 18px;
         padding: 14px;
@@ -130,12 +138,12 @@
     <div class="card">
       <div class="icon">⛔</div>
       <h1>Сайт хаагдсан</h1>
-      <p>
+      <p id="block-explanation">
         Энэ сайт хүүхдэд тохирохгүй гэж
         <strong>AI хамгаалалт</strong>
         илрүүлсэн тул хандалтыг хаалаа.
       </p>
-      <p class="notice">Эцэг эхэд мэдэгдэл илгээгдсэн.</p>
+      <p class="notice" id="block-notice">Эцэг эхэд мэдэгдэл илгээгдсэн.</p>
       <p class="status" id="auto-status">Тохиргоо шинэчлэгдсэн эсэхийг шалгаж байна...</p>
       <div class="unblock-card">
         <p class="unblock-title">Parent Unblock</p>
@@ -145,169 +153,6 @@
       </div>
     </div>
 
-    <script>
-      const API_BASE = "http://localhost:5000/api";
-      const API_AUTH_BASE = "http://localhost:5000/api/auth";
-      const OVERRIDE_MS = 15 * 60 * 1000;
-
-      async function goToUrl(url) {
-        if (!url) return;
-        const currentTab = await chrome.tabs.getCurrent().catch(() => null);
-        if (currentTab?.id) {
-          await chrome.tabs.update(currentTab.id, { url });
-          return;
-        }
-        window.location.replace(url);
-      }
-
-      async function isOverrideActive() {
-        const storage = await chrome.storage.local.get(["parentOverrideUntil"]);
-        const until = Number(storage.parentOverrideUntil);
-        if (!Number.isFinite(until) || until <= Date.now()) {
-          if (storage.parentOverrideUntil) {
-            await chrome.storage.local.remove(["parentOverrideUntil"]);
-          }
-          return false;
-        }
-        return true;
-      }
-
-      async function handleParentUnblock() {
-        const statusEl = document.getElementById("auto-status");
-        const errorEl = document.getElementById("unblock-error");
-        const passwordEl = document.getElementById("parent-pass");
-        const buttonEl = document.getElementById("btn-parent-unblock");
-        const password = passwordEl?.value?.trim();
-
-        if (errorEl) errorEl.innerText = "";
-        if (!password) {
-          if (errorEl) errorEl.innerText = "Parent password is required.";
-          return;
-        }
-
-        if (buttonEl) buttonEl.disabled = true;
-        try {
-          const storage = await chrome.storage.local.get([
-            "parentToken",
-            "lastBlockedUrl",
-            "activeChildId",
-          ]);
-          if (!storage.parentToken) {
-            if (errorEl) errorEl.innerText = "Parent account is not logged in on this extension.";
-            return;
-          }
-          if (!storage.activeChildId) {
-            if (errorEl) errorEl.innerText = "Active child is missing.";
-            return;
-          }
-
-          const verifyResponse = await fetch(`${API_AUTH_BASE}/grant-daily-time`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: storage.parentToken,
-              password,
-              childId: storage.activeChildId,
-              seconds: OVERRIDE_MS / 1000,
-            }),
-          });
-          const verifyData = await verifyResponse.json().catch(() => ({}));
-          if (!verifyResponse.ok || !verifyData?.success) {
-            if (errorEl) errorEl.innerText = verifyData?.message || "Password verification failed.";
-            return;
-          }
-
-          const overrideResponse = await chrome.runtime.sendMessage({
-            type: "PARENT_UNBLOCK_OVERRIDE",
-            url: storage.lastBlockedUrl,
-            durationMs: OVERRIDE_MS,
-          });
-
-          if (!overrideResponse?.success) {
-            if (errorEl) errorEl.innerText = "Could not apply unblock override.";
-            return;
-          }
-
-          if (statusEl) {
-            statusEl.innerText = "Parent override is active for 15 minutes. Returning to site...";
-          }
-          if (passwordEl) passwordEl.value = "";
-
-          if (storage.lastBlockedUrl) {
-            await goToUrl(storage.lastBlockedUrl);
-          }
-        } catch {
-          if (errorEl) errorEl.innerText = "Server connection failed.";
-        } finally {
-          if (buttonEl) buttonEl.disabled = false;
-        }
-      }
-
-      async function tryAutoRestore() {
-        const statusEl = document.getElementById("auto-status");
-        const { activeChildId, lastBlockedUrl } = await chrome.storage.local.get([
-          "activeChildId",
-          "lastBlockedUrl",
-        ]);
-
-        const overrideActive = await isOverrideActive();
-        if (overrideActive && lastBlockedUrl) {
-          await chrome.storage.local.remove(["lastBlockedUrl"]);
-          await goToUrl(lastBlockedUrl);
-          return;
-        }
-
-        if (!activeChildId) {
-          if (statusEl) statusEl.innerText = "Хүүхдийн аккаунт идэвхгүй байна.";
-          return;
-        }
-
-        if (!lastBlockedUrl) {
-          if (statusEl) statusEl.innerText = "Хаагдсан URL олдсонгүй.";
-          return;
-        }
-
-        try {
-          const response = await fetch(`${API_BASE}/check-url`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              childId: activeChildId,
-              url: lastBlockedUrl,
-              dryRun: true,
-            }),
-          });
-          const data = await response.json();
-
-          if (data?.action !== "BLOCK") {
-            await chrome.storage.local.remove(["lastBlockedUrl"]);
-            await goToUrl(lastBlockedUrl);
-            return;
-          }
-
-          if (statusEl) {
-            statusEl.innerText = "Одоогийн дүрмээр хаалттай хэвээр байна. Дахин шалгаж байна...";
-          }
-        } catch (error) {
-          if (statusEl) {
-            statusEl.innerText = "Сервертэй холбогдож чадсангүй. Дахин оролдож байна...";
-          }
-        }
-      }
-
-      document.getElementById("btn-parent-unblock")?.addEventListener("click", () => {
-        void handleParentUnblock();
-      });
-      document.getElementById("parent-pass")?.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          void handleParentUnblock();
-        }
-      });
-
-      void tryAutoRestore();
-      setInterval(() => {
-        void tryAutoRestore();
-      }, 1000);
-    </script>
+    <script src="blocked.js"></script>
   </body>
 </html>

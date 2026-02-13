@@ -141,8 +141,8 @@ export async function POST(req: Request) {
       create: {
         domain: rawDomain,
         categoryName: "Custom",
-        safetyScore: 0,
-        tags: [],
+        safetyScore: 100,
+        tags: ["manual"],
         updatedAt: new Date(),
       },
     });

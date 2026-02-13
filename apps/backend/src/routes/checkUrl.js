@@ -11,7 +11,12 @@ router.post("/", async (req, res, next) => {
     const isDryRun = Boolean(dryRun);
 
     if (!childId || !url) {
-      return res.status(400).json({ action: "ALLOWED", error: "Missing data" });
+      return res.status(400).json({
+        action: "ALLOWED",
+        reason: "INVALID_INPUT",
+        source: "SYSTEM",
+        error: "Missing data",
+      });
     }
 
     // 1. URL Parse хийх
@@ -21,7 +26,7 @@ router.post("/", async (req, res, next) => {
       domain = urlObj.hostname.replace(/^www\./, "");
     } catch (e) {
       // Хэрэв URL буруу бол (жишээ нь chrome://) зөвшөөрнө
-      return res.json({ action: "ALLOWED" });
+      return res.json({ action: "ALLOWED", reason: "NON_HTTP_URL", source: "SYSTEM" });
     }
 
     // 2. Баазаас (Catalog) хайх
@@ -69,7 +74,7 @@ router.post("/", async (req, res, next) => {
 
     // Хэрэв AI болон Баазаас олдоогүй бол
     if (!catalogEntry) {
-      return res.json({ action: "ALLOWED" });
+      return res.json({ action: "ALLOWED", reason: "UNKNOWN_DOMAIN", source: "SYSTEM" });
     }
 
     // 3. ТОХИРГОО ШАЛГАХ (Parallel Query)
@@ -100,27 +105,35 @@ router.post("/", async (req, res, next) => {
     // 4. ШИЙДВЭР ГАРГАХ (Decision Engine)
     let action = "ALLOWED";
     let blockReason = "NONE";
+    let blockSource = "SYSTEM";
+    const hasSafetyScore = typeof catalogEntry.safetyScore === "number";
+    const isCustomDomain = catalogEntry.categoryName === "Custom";
+    const isDangerousScore = hasSafetyScore && catalogEntry.safetyScore < 50;
 
     // Шат 1: Аюулгүй байдлын оноо
-    if (catalogEntry.safetyScore < 50) {
+    if (isDangerousScore && !isCustomDomain) {
       action = "BLOCK";
       blockReason = "DANGEROUS_CONTENT";
+      blockSource = "AI";
     }
 
     // Шат 2: Категорийн тохиргоо
     if (categorySetting && categorySetting.status === "BLOCKED") {
       action = "BLOCK";
       blockReason = "CATEGORY_BLOCKED";
+      blockSource = categorySetting.timeLimit === -1 ? "AI" : "PARENT";
     }
 
     // Шат 3: Тусгай URL тохиргоо (Override)
     if (urlSetting) {
       if (urlSetting.status === "BLOCKED") {
         action = "BLOCK";
-        blockReason = "PARENT_BLOCKED";
+        blockReason = "URL_BLOCKED";
+        blockSource = urlSetting.timeLimit === -1 ? "AI" : "PARENT";
       } else if (urlSetting.status === "ALLOWED") {
         action = "ALLOWED";
         blockReason = "PARENT_ALLOWED";
+        blockSource = "PARENT";
       }
     }
 
@@ -132,6 +145,7 @@ router.post("/", async (req, res, next) => {
       if (timeStatus.isBlocked) {
         action = "BLOCK";
         blockReason = "TIME_LIMIT_EXCEEDED";
+        blockSource = "SYSTEM";
       }
     }
 
@@ -140,10 +154,11 @@ router.post("/", async (req, res, next) => {
     if (globalDailyStatus.isBlocked) {
       action = "BLOCK";
       blockReason = "DAILY_LIMIT_EXCEEDED";
+      blockSource = "SYSTEM";
     }
 
     // 6. ALERT SYSTEM
-    if (!isDryRun && action === "BLOCK" && catalogEntry.safetyScore < 50) {
+    if (!isDryRun && action === "BLOCK" && isDangerousScore && !isCustomDomain) {
       await prisma.alert
         .create({
           data: {
@@ -175,7 +190,12 @@ router.post("/", async (req, res, next) => {
     }
 
     // 8. Хариу буцаах
-    return res.json({ action });
+    return res.json({
+      action,
+      reason: blockReason,
+      source: blockSource,
+      domain,
+    });
   } catch (error) {
     next(error);
   }
