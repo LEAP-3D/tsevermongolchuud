@@ -5,12 +5,11 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "db:push": "npx prisma db push --schema prisma/schema.prisma",
-    "db:studio": "npx prisma studio --schema prisma/schema.prisma",
+    "db:push": "npx prisma db push --schema ../../prisma/schema.prisma",
+    "db:studio": "npx prisma studio --schema ../../prisma/schema.prisma",
     "seed": "node ../../prisma/seed.js"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.2",
     "@faker-js/faker": "^8.4.1",
     "@google/generative-ai": "^0.24.1",
     "cors": "^2.8.5",
