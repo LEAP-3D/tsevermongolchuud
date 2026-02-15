@@ -3,23 +3,33 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
 
-const UB_TIMEZONE = "Asia/Ulaanbaatar";
+const DEFAULT_TIMEZONE = "UTC";
 
-const getUbDateKey = (value: Date) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: UB_TIMEZONE }).format(value);
+const normalizeTimeZone = (value: string | null) => {
+  if (!value) return DEFAULT_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
+    return value;
+  } catch {
+    return DEFAULT_TIMEZONE;
+  }
+};
 
-const getUbHour = (value: Date) =>
+const getDateKey = (value: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone }).format(value);
+
+const getHour = (value: Date, timeZone: string) =>
   Number(
     new Intl.DateTimeFormat("en-US", {
-      timeZone: UB_TIMEZONE,
+      timeZone,
       hour: "2-digit",
       hour12: false,
     }).format(value)
   );
 
-const getUbDayStart = (value: Date = new Date()) => {
+const getDayStart = (timeZone: string, value: Date = new Date()) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: UB_TIMEZONE,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -48,7 +58,7 @@ const parseRangeDays = (range: string) => {
   }
 };
 
-const toDateKey = (value: Date) => getUbDateKey(value);
+const toDateKey = (value: Date, timeZone: string) => getDateKey(value, timeZone);
 
 const formatHourLabel = (hour: number) => {
   const normalized = hour % 24;
@@ -69,34 +79,52 @@ const buildHourLabels = (bucketHours: number) => {
   return labels;
 };
 
-const buildDayLabels = (days: number) => {
+const buildDayLabels = (days: number, timeZone: string) => {
   const labels: Array<{ key: string; label: string; date: Date }> = [];
-  const today = getUbDayStart(new Date());
+  const today = getDayStart(timeZone, new Date());
   for (let i = days - 1; i >= 0; i -= 1) {
     const date = new Date(today);
     date.setUTCDate(today.getUTCDate() - i);
-    const key = toDateKey(date);
+    const key = toDateKey(date, timeZone);
     let label = "";
     if (days === 1) {
       label = "Today";
     } else if (days <= 7) {
-      label = date.toLocaleDateString("en-US", { weekday: "short", timeZone: UB_TIMEZONE });
+      label = date.toLocaleDateString("en-US", { weekday: "short", timeZone });
     } else {
-      label = date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: UB_TIMEZONE });
+      label = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        timeZone,
+      });
     }
     labels.push({ key, label, date });
   }
   return labels;
 };
 
-const secondsToHours = (seconds: number) => {
-  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
-  return seconds / 3600;
-};
-
 const secondsToMinutes = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds <= 0) return 0;
   return seconds / 60;
+};
+
+const normalizeCategoryName = (value: string | null | undefined) => {
+  const raw = (value ?? "").trim();
+  if (!raw) return "Other";
+  const lowered = raw.toLowerCase();
+  if (lowered === "custom" || lowered === "uncategorized") {
+    return "Other";
+  }
+  return raw;
+};
+
+const toFaviconUrl = (domain: string) =>
+  `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
+
+const toRiskLevel = (safetyScore: number) => {
+  if (safetyScore >= 80) return "Safe";
+  if (safetyScore >= 50) return "Suspicious";
+  return "Dangerous";
 };
 
 export async function GET(req: Request) {
@@ -108,6 +136,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const childIdParam = searchParams.get("childId");
   const range = normalizeRange(searchParams.get("range"));
+  const timeZone = normalizeTimeZone(searchParams.get("timeZone"));
 
   const childId = childIdParam ? Number.parseInt(childIdParam, 10) : null;
   if (!childId || Number.isNaN(childId)) {
@@ -124,27 +153,27 @@ export async function GET(req: Request) {
   }
 
   const days = parseRangeDays(range);
-  const start = getUbDayStart(new Date());
+  const start = getDayStart(timeZone, new Date());
   start.setUTCDate(start.getUTCDate() - (days - 1));
 
   const historyStart = range === "today"
     ? new Date(start.getTime() - 24 * 60 * 60 * 1000)
     : start;
 
-  const [dailyUsage, history, alerts] = await Promise.all([
-    prisma.dailyUsage.findMany({
-      where: {
-        childId,
-        date: { gte: start },
-      },
-      select: { date: true, duration: true },
-    }),
+  const [history, alerts, blockedSitesCount] = await Promise.all([
     prisma.history.findMany({
       where: {
         childId,
         visitedAt: { gte: historyStart },
       },
-      select: { categoryName: true, duration: true, domain: true, actionTaken: true, visitedAt: true },
+      select: {
+        categoryName: true,
+        fullUrl: true,
+        duration: true,
+        domain: true,
+        actionTaken: true,
+        visitedAt: true,
+      },
     }),
     prisma.alert.findMany({
       where: {
@@ -153,60 +182,188 @@ export async function GET(req: Request) {
       },
       select: { type: true },
     }),
+    prisma.childUrlSetting.count({
+      where: {
+        childId,
+        status: "BLOCKED",
+      },
+    }),
   ]);
 
-  const labels = buildDayLabels(days);
+  const labels = buildDayLabels(days, timeZone);
   const dayTotals = new Map(labels.map(item => [item.key, 0]));
-  for (const entry of dailyUsage) {
-    const key = toDateKey(entry.date);
+  for (const entry of history) {
+    if (!entry.visitedAt) continue;
+    const key = toDateKey(new Date(entry.visitedAt), timeZone);
     if (dayTotals.has(key)) {
       dayTotals.set(key, (dayTotals.get(key) ?? 0) + (entry.duration ?? 0));
     }
   }
 
-  let usageTimeline: Array<{ day: string; hours: number }> = [];
+  let usageTimeline: Array<{
+    day: string;
+    minutes: number;
+    sites: Array<{
+      url: string;
+      domain: string;
+      category: string;
+      minutes: number;
+      logoUrl: string;
+      enteredAt: string;
+      leftAt: string;
+    }>;
+  }> = [];
   let rangeTotalSeconds = 0;
 
   if (range === "today") {
     const bucketHours = 2;
     const hourLabels = buildHourLabels(bucketHours);
     const hourTotals = new Map(hourLabels.map(item => [item.key, 0]));
+    const bucketSites = new Map<
+      number,
+      Map<
+        string,
+        {
+          url: string;
+          domain: string;
+          category: string;
+          seconds: number;
+          enteredAtMs: number;
+          leftAtMs: number;
+        }
+      >
+    >();
 
-    const todayKey = getUbDateKey(new Date());
+    const todayKey = getDateKey(new Date(), timeZone);
 
     for (const entry of history) {
       if (!entry.visitedAt) continue;
       const visited = new Date(entry.visitedAt);
       if (Number.isNaN(visited.getTime())) continue;
-      if (getUbDateKey(visited) !== todayKey) continue;
-      const hour = getUbHour(visited);
+      if (getDateKey(visited, timeZone) !== todayKey) continue;
+      const hour = getHour(visited, timeZone);
       const bucket = Math.floor(hour / bucketHours) * bucketHours;
       hourTotals.set(bucket, (hourTotals.get(bucket) ?? 0) + (entry.duration ?? 0));
+
+      const url = typeof entry.fullUrl === "string" && entry.fullUrl ? entry.fullUrl : "";
+      if (!url) continue;
+      if (!bucketSites.has(bucket)) {
+        bucketSites.set(bucket, new Map());
+      }
+      const byUrl = bucketSites.get(bucket);
+      if (!byUrl) continue;
+      const leftAtMs = visited.getTime();
+      const enteredAtMs = leftAtMs - Math.max(0, Number(entry.duration ?? 0)) * 1000;
+      const current = byUrl.get(url);
+      byUrl.set(url, {
+        url,
+        domain: entry.domain || "-",
+        category: normalizeCategoryName(entry.categoryName),
+        seconds: (current?.seconds ?? 0) + (entry.duration ?? 0),
+        enteredAtMs: Math.min(current?.enteredAtMs ?? enteredAtMs, enteredAtMs),
+        leftAtMs: Math.max(current?.leftAtMs ?? leftAtMs, leftAtMs),
+      });
     }
 
     usageTimeline = hourLabels.map(item => ({
       day: item.label,
-      hours: Number(secondsToHours(hourTotals.get(item.key) ?? 0).toFixed(1)),
+      minutes: Math.round(secondsToMinutes(hourTotals.get(item.key) ?? 0)),
+      sites: Array.from((bucketSites.get(item.key) ?? new Map()).values())
+        .sort((a, b) => b.seconds - a.seconds)
+        .slice(0, 8)
+        .map((site) => ({
+          url: site.url,
+          domain: site.domain,
+          category: site.category,
+          minutes: Math.max(1, Math.round(secondsToMinutes(site.seconds))),
+          logoUrl: toFaviconUrl(site.domain),
+          enteredAt: new Date(site.enteredAtMs).toISOString(),
+          leftAt: new Date(site.leftAtMs).toISOString(),
+        })),
     }));
 
     rangeTotalSeconds = Array.from(hourTotals.values()).reduce((sum, value) => sum + value, 0);
   } else {
+    const daySites = new Map<
+      string,
+      Map<
+        string,
+        {
+          url: string;
+          domain: string;
+          category: string;
+          seconds: number;
+          enteredAtMs: number;
+          leftAtMs: number;
+        }
+      >
+    >();
+    for (const entry of history) {
+      if (!entry.visitedAt) continue;
+      const key = toDateKey(new Date(entry.visitedAt), timeZone);
+      if (!dayTotals.has(key)) continue;
+      const url = typeof entry.fullUrl === "string" && entry.fullUrl ? entry.fullUrl : "";
+      if (!url) continue;
+      if (!daySites.has(key)) {
+        daySites.set(key, new Map());
+      }
+      const byUrl = daySites.get(key);
+      if (!byUrl) continue;
+      const visitedAt = new Date(entry.visitedAt);
+      const leftAtMs = visitedAt.getTime();
+      const enteredAtMs = leftAtMs - Math.max(0, Number(entry.duration ?? 0)) * 1000;
+      const current = byUrl.get(url);
+      byUrl.set(url, {
+        url,
+        domain: entry.domain || "-",
+        category: normalizeCategoryName(entry.categoryName),
+        seconds: (current?.seconds ?? 0) + (entry.duration ?? 0),
+        enteredAtMs: Math.min(current?.enteredAtMs ?? enteredAtMs, enteredAtMs),
+        leftAtMs: Math.max(current?.leftAtMs ?? leftAtMs, leftAtMs),
+      });
+    }
+
     usageTimeline = labels.map(item => ({
       day: item.label,
-      hours: Number(secondsToHours(dayTotals.get(item.key) ?? 0).toFixed(1)),
+      minutes: Math.round(secondsToMinutes(dayTotals.get(item.key) ?? 0)),
+      sites: Array.from((daySites.get(item.key) ?? new Map()).values())
+        .sort((a, b) => b.seconds - a.seconds)
+        .slice(0, 8)
+        .map((site) => ({
+          url: site.url,
+          domain: site.domain,
+          category: site.category,
+          minutes: Math.max(1, Math.round(secondsToMinutes(site.seconds))),
+          logoUrl: toFaviconUrl(site.domain),
+          enteredAt: new Date(site.enteredAtMs).toISOString(),
+          leftAt: new Date(site.leftAtMs).toISOString(),
+        })),
     }));
 
     rangeTotalSeconds = Array.from(dayTotals.values()).reduce((sum, value) => sum + value, 0);
   }
 
   const categoryTotals = new Map<string, number>();
-  const blockedDomains = new Set<string>();
+  const categoryWebsiteSeconds = new Map<
+    string,
+    { category: string; url: string; domain: string; seconds: number }
+  >();
   for (const entry of history) {
-    const name = entry.categoryName || "Other";
-    categoryTotals.set(name, (categoryTotals.get(name) ?? 0) + (entry.duration ?? 0));
-    if (entry.actionTaken === "BLOCKED" && entry.domain) {
-      blockedDomains.add(entry.domain);
-    }
+    const name = normalizeCategoryName(entry.categoryName);
+    const duration = Math.max(0, Number(entry.duration ?? 0));
+    categoryTotals.set(name, (categoryTotals.get(name) ?? 0) + duration);
+
+    const url = typeof entry.fullUrl === "string" ? entry.fullUrl : "";
+    if (!url) continue;
+    const domain = entry.domain || "-";
+    const key = `${name}|${url}`;
+    const current = categoryWebsiteSeconds.get(key);
+    categoryWebsiteSeconds.set(key, {
+      category: name,
+      url,
+      domain,
+      seconds: (current?.seconds ?? 0) + duration,
+    });
   }
 
   const palette = ["#007AFF", "#5856D6", "#FF2D55", "#FF9500", "#8E8E93", "#34C759"];
@@ -218,28 +375,110 @@ export async function GET(req: Request) {
       color: palette[index % palette.length],
     }));
 
-  const riskCounts = {
-    Safe: 0,
-    Suspicious: 0,
-    Dangerous: 0,
-  };
-  for (const alert of alerts) {
-    if (alert.type === "DANGEROUS_CONTENT") riskCounts.Dangerous += 1;
-    if (alert.type === "SUSPICIOUS_ACTIVITY") riskCounts.Suspicious += 1;
-    if (alert.type === "TIME_LIMIT_EXCEEDED") riskCounts.Safe += 1;
+  const uniqueDomains = [...new Set(history.map((item) => item.domain).filter((item): item is string => Boolean(item)))];
+  const domainCatalog = uniqueDomains.length
+    ? await prisma.urlCatalog.findMany({
+        where: { domain: { in: uniqueDomains } },
+        select: { domain: true, safetyScore: true },
+      })
+    : [];
+  const safetyScoreByDomain = new Map(
+    domainCatalog.map((item) => [item.domain, Number.isFinite(Number(item.safetyScore)) ? Number(item.safetyScore) : 50]),
+  );
+
+  const riskCounts = { Safe: 0, Suspicious: 0, Dangerous: 0 };
+  const riskWebsiteSeconds = new Map<
+    string,
+    { level: string; category: string; url: string; domain: string; safetyScore: number; seconds: number }
+  >();
+  let weightedSafetyNumerator = 0;
+  let totalExposureSeconds = 0;
+  let blockedEvents = 0;
+  let dangerousBlockedEvents = 0;
+
+  for (const entry of history) {
+    const duration = Math.max(0, Number(entry.duration ?? 0));
+    const score = entry.domain ? (safetyScoreByDomain.get(entry.domain) ?? 50) : 50;
+    weightedSafetyNumerator += score * duration;
+    totalExposureSeconds += duration;
+
+    if (score >= 80) {
+      riskCounts.Safe += duration;
+    } else if (score >= 50) {
+      riskCounts.Suspicious += duration;
+    } else {
+      riskCounts.Dangerous += duration;
+    }
+
+    const url = typeof entry.fullUrl === "string" ? entry.fullUrl : "";
+    if (url) {
+      const level = toRiskLevel(score);
+      const category = normalizeCategoryName(entry.categoryName);
+      const domain = entry.domain || "-";
+      const key = `${level}|${url}`;
+      const current = riskWebsiteSeconds.get(key);
+      riskWebsiteSeconds.set(key, {
+        level,
+        category,
+        url,
+        domain,
+        safetyScore: Math.round(score),
+        seconds: (current?.seconds ?? 0) + duration,
+      });
+    }
+
+    if (entry.actionTaken === "BLOCKED") {
+      blockedEvents += 1;
+      if (score < 50) {
+        dangerousBlockedEvents += 1;
+      }
+    }
   }
+
+  const dangerousAlerts = alerts.filter((item) => item.type === "DANGEROUS_CONTENT").length;
+  const suspiciousAlerts = alerts.filter((item) => item.type === "SUSPICIOUS_ACTIVITY").length;
+  const weightedAverageSafety = totalExposureSeconds > 0 ? weightedSafetyNumerator / totalExposureSeconds : 100;
+  const dangerousMinutes = secondsToMinutes(riskCounts.Dangerous);
+  const safetyPenalty =
+    blockedEvents * 2 +
+    dangerousBlockedEvents * 3 +
+    Math.round(dangerousMinutes / 20) +
+    dangerousAlerts * 2 +
+    suspiciousAlerts;
+
   const riskData = [
-    { level: "Safe", count: riskCounts.Safe, color: "#34C759" },
-    { level: "Suspicious", count: riskCounts.Suspicious, color: "#FF9500" },
-    { level: "Dangerous", count: riskCounts.Dangerous, color: "#FF3B30" },
+    { level: "Safe", count: Math.round(secondsToMinutes(riskCounts.Safe)), color: "#34C759" },
+    { level: "Suspicious", count: Math.round(secondsToMinutes(riskCounts.Suspicious)), color: "#FF9500" },
+    { level: "Dangerous", count: Math.round(secondsToMinutes(riskCounts.Dangerous)), color: "#FF3B30" },
   ];
 
-  const riskPenalty = riskCounts.Dangerous * 6 + riskCounts.Suspicious * 3;
-  const safetyScore = Math.max(0, Math.min(100, 100 - riskPenalty));
+  const safetyScore = Math.max(0, Math.min(100, Math.round(weightedAverageSafety - safetyPenalty)));
 
-  const todayKey = getUbDateKey(new Date());
+  const todayKey = getDateKey(new Date(), timeZone);
   const todaySeconds = dayTotals.get(todayKey) ?? 0;
   const totalSeconds = rangeTotalSeconds;
+  const categoryWebsiteDetails = Array.from(categoryWebsiteSeconds.values())
+    .sort((a, b) => b.seconds - a.seconds)
+    .slice(0, 200)
+    .map((item) => ({
+      category: item.category,
+      url: item.url,
+      domain: item.domain,
+      minutes: Math.max(1, Math.round(secondsToMinutes(item.seconds))),
+      logoUrl: toFaviconUrl(item.domain),
+    }));
+  const riskWebsiteDetails = Array.from(riskWebsiteSeconds.values())
+    .sort((a, b) => b.seconds - a.seconds)
+    .slice(0, 200)
+    .map((item) => ({
+      level: item.level,
+      category: item.category,
+      url: item.url,
+      domain: item.domain,
+      minutes: Math.max(1, Math.round(secondsToMinutes(item.seconds))),
+      safetyScore: item.safetyScore,
+      logoUrl: toFaviconUrl(item.domain),
+    }));
 
   return NextResponse.json({
     childId,
@@ -247,8 +486,10 @@ export async function GET(req: Request) {
     categoryData,
     riskData,
     safetyScore,
-    blockedSites: blockedDomains.size,
+    blockedSites: blockedSitesCount,
     rangeUsageMinutes: Math.round(secondsToMinutes(totalSeconds)),
     todayUsageMinutes: Math.round(secondsToMinutes(todaySeconds)),
+    categoryWebsiteDetails,
+    riskWebsiteDetails,
   });
 }

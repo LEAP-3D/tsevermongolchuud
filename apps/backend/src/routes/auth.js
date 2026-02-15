@@ -75,26 +75,21 @@ const grantDailyRemainingSeconds = async (childId, grantSeconds) => {
   };
 };
 
-// 1. Эцэг эх нэвтрэх (Parent Login)
 router.post("/parent-login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Хэрэглэгчийг имэйлээр хайх
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { children: true }, // Хүүхдүүдийн мэдээллийг хамт авна
+      include: { children: true },
     });
 
-    // Хэрэглэгч олдсонгүй эсвэл нууц үг буруу (Энгийн шалгалт)
-    // Санамж: Бодит төсөл дээр bcrypt ашиглан нууц үгийг hash хийх ёстой
     if (!user || user.password !== password) {
       return res
         .status(401)
-        .json({ success: false, message: "Имэйл эсвэл нууц үг буруу байна." });
+        .json({ success: false, message: "Invalid email or password." });
     }
 
-    // Амжилттай бол хүүхдүүдийн жагсаалтыг буцаана
     const childrenList = user.children.map((child) => ({
       id: child.id,
       name: child.name,
@@ -102,7 +97,7 @@ router.post("/parent-login", async (req, res, next) => {
 
     res.json({
       success: true,
-      token: `user_${user.id}_token`, // Түр token (JWT байвал сайн)
+      token: `user_${user.id}_token`,
       children: childrenList,
     });
   } catch (error) {
@@ -110,7 +105,6 @@ router.post("/parent-login", async (req, res, next) => {
   }
 });
 
-// 2. Хүүхдийн PIN шалгах (Verify PIN)
 router.post("/verify-pin", async (req, res, next) => {
   try {
     const { childId, pin } = req.body;
@@ -122,19 +116,18 @@ router.post("/verify-pin", async (req, res, next) => {
     if (!child || child.pin !== pin) {
       return res
         .status(401)
-        .json({ success: false, message: "PIN код буруу байна." });
+        .json({ success: false, message: "Incorrect PIN code." });
     }
 
-    res.json({ success: true, message: "PIN зөв байна." });
+    res.json({ success: true, message: "PIN is valid." });
   } catch (error) {
     next(error);
   }
 });
 
-// 3. Эцэг эхийн нууц үг шалгах (Logout хийх үед)
 router.post("/verify-parent", async (req, res, next) => {
   try {
-    const { email, password } = req.body; // Extension-оос имэйлийг нь бас явуулах хэрэгтэй
+    const { email, password } = req.body;
 
     const user = await prisma.user.findUnique({ where: { email } });
 
@@ -148,7 +141,6 @@ router.post("/verify-parent", async (req, res, next) => {
   }
 });
 
-// 3.1 Parent token + password verify (blocked page emergency unblock)
 router.post("/verify-parent-token", async (req, res, next) => {
   try {
     const { token, password } = req.body;
@@ -162,7 +154,6 @@ router.post("/verify-parent-token", async (req, res, next) => {
   }
 });
 
-// 3.2 Grant exactly N seconds remaining on daily limit (default 15 min)
 router.post("/grant-daily-time", async (req, res, next) => {
   try {
     const { token, password, childId, seconds } = req.body;
@@ -201,7 +192,6 @@ router.post("/grant-daily-time", async (req, res, next) => {
   }
 });
 
-// 4. Хүүхдийн өдөр тутмын үлдэгдэл секунд авах
 router.get("/daily-remaining", async (req, res, next) => {
   try {
     const childId = Number(req.query?.childId);

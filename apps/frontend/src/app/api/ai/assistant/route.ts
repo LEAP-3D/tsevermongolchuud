@@ -19,10 +19,9 @@ type AssistantModelResponse = {
   actions: AssistantAction[];
 };
 
-const ACTION_VERB_REGEX =
-  /\b(block|ban|limit|set|change|update|restrict|хориг|хаа|блок|blockloh|blok|bloc)\b/i;
-const BLOCK_INTENT_REGEX = /\b(block|ban|restrict|хориг|хаа|блок|blockloh|blok|bloc)\b/i;
-const LIMIT_INTENT_REGEX = /\b(limit|set|change|update|daily|session|цаг|хязгаар|лимит)\b/i;
+const ACTION_VERB_REGEX = /\b(block|ban|limit|set|change|update|restrict)\b/i;
+const BLOCK_INTENT_REGEX = /\b(block|ban|restrict)\b/i;
+const LIMIT_INTENT_REGEX = /\b(limit|set|change|update|daily|session)\b/i;
 const TABLE_NOT_FOUND_CODE = "P2021";
 
 const isPrismaTableMissingError = (error: unknown) =>
@@ -170,9 +169,9 @@ const fallbackAssistant = (message: string, summary: string): AssistantModelResp
   const numeric = text.match(/(\d{2,3})\s*(min|minute|minutes|m)\b/i);
   const domainMatch = text.match(/\b([a-z0-9-]+\.)+[a-z]{2,}\b/i);
   const summaryIntentRegex =
-    /\b(summary|activity|activities|usage|report|reports|safety|risk|internet|online|dashboard|тайлан|идэвх|хэрэглээ|аюулгүй)\b/i;
+    /\b(summary|activity|activities|usage|report|reports|safety|risk|internet|online|dashboard)\b/i;
   const casualChatRegex =
-    /\b(hello|hi|hey|how are you|joke|story|explain|translate|movie|music|travel|code|help|what is|who is|сайн уу|хошин|орчуул|тайлбар)\b/i;
+    /\b(hello|hi|hey|how are you|joke|story|explain|translate|movie|music|travel|code|help|what is|who is)\b/i;
 
   if (BLOCK_INTENT_REGEX.test(text) && domainMatch) {
     return {
@@ -181,7 +180,7 @@ const fallbackAssistant = (message: string, summary: string): AssistantModelResp
     };
   }
 
-  if (LIMIT_INTENT_REGEX.test(text) && /daily|өдөр|өдрийн/i.test(text) && numeric) {
+  if (LIMIT_INTENT_REGEX.test(text) && /daily/i.test(text) && numeric) {
     return {
       reply: `I can set daily limit to ${numeric[1]} minutes. Please confirm and I will apply it to the selected child (or specify child name).`,
       actions: [{ type: "SET_DAILY_LIMIT", minutes: Number(numeric[1]) }],

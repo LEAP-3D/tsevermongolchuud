@@ -13,9 +13,11 @@ import SettingsContent from "../components/SettingsContent";
 import FloatingAIAssistant from "../components/FloatingAIAssistant";
 import type {
   CategorySlice,
+  CategoryWebsiteDetail,
   ChatMessage,
   Child,
   RiskPoint,
+  RiskWebsiteDetail,
   UsagePoint,
 } from "../components/types";
 import TeslaAuthBackdrop from "../components/TeslaAuthBackdrop";
@@ -51,10 +53,13 @@ export default function HomeDashboard() {
   const [childrenError, setChildrenError] = useState("");
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
   const [usageData, setUsageData] = useState<UsagePoint[]>([]);
   const [categoryData, setCategoryData] = useState<CategorySlice[]>([]);
   const [riskData, setRiskData] = useState<RiskPoint[]>([]);
+  const [categoryWebsiteDetails, setCategoryWebsiteDetails] = useState<CategoryWebsiteDetail[]>([]);
+  const [riskWebsiteDetails, setRiskWebsiteDetails] = useState<RiskWebsiteDetail[]>([]);
   const [safetyScore, setSafetyScore] = useState<number | null>(null);
   const [blockedSites, setBlockedSites] = useState<number | null>(null);
   const [rangeUsageMinutes, setRangeUsageMinutes] = useState<number | null>(null);
@@ -265,71 +270,85 @@ export default function HomeDashboard() {
   const selectedChild = children.find(child => child.id === selectedChildId) ?? null;
   const rangeUsage = selectedChild ? formatMinutes(rangeUsageMinutes) : "--";
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      if (!selectedChildId || !user?.id) {
-        setUsageData([]);
-        setCategoryData([]);
-        setRiskData([]);
-        setSafetyScore(null);
-        setBlockedSites(null);
-        setRangeUsageMinutes(null);
+  const loadDashboard = useCallback(async (manual = false) => {
+    if (!selectedChildId || !user?.id) {
+      setUsageData([]);
+      setCategoryData([]);
+      setRiskData([]);
+      setCategoryWebsiteDetails([]);
+      setRiskWebsiteDetails([]);
+      setSafetyScore(null);
+      setBlockedSites(null);
+      setRangeUsageMinutes(null);
+      return;
+    }
+    if (manual) {
+      setDashboardRefreshing(true);
+    } else {
+      setDashboardLoading(true);
+    }
+    setDashboardError("");
+    try {
+      const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const response = await fetch(
+        `/api/dashboard?childId=${selectedChildId}&range=${timeFilter}&timeZone=${encodeURIComponent(
+          localTimeZone
+        )}&parentId=${encodeURIComponent(String(user.id))}`
+      );
+      if (response.status === 401) {
+        setDashboardError("");
         return;
       }
-      setDashboardLoading(true);
-      setDashboardError("");
-      try {
-        const response = await fetch(
-          `/api/dashboard?childId=${selectedChildId}&range=${timeFilter}&parentId=${encodeURIComponent(
-            String(user.id)
-          )}`
-        );
-        if (response.status === 401) {
-          setDashboardError("");
-          return;
-        }
-        if (!response.ok) {
-          let message = "Failed to load dashboard.";
-          try {
-            const payload = await response.json();
-            if (payload?.error) {
-              message = String(payload.error);
-            }
-          } catch {
-            // ignore JSON parse errors
+      if (!response.ok) {
+        let message = "Failed to load dashboard.";
+        try {
+          const payload = await response.json();
+          if (payload?.error) {
+            message = String(payload.error);
           }
-          throw new Error(message);
+        } catch {
+          // ignore JSON parse errors
         }
-        const payload: {
-          usageTimeline: UsagePoint[];
-          categoryData: CategorySlice[];
-          riskData: RiskPoint[];
-          safetyScore: number;
-          blockedSites: number;
-          rangeUsageMinutes: number;
-        } = await response.json();
-        setUsageData(payload.usageTimeline ?? []);
-        setCategoryData(payload.categoryData ?? []);
-        setRiskData(payload.riskData ?? []);
-        setSafetyScore(Number.isFinite(payload.safetyScore) ? payload.safetyScore : null);
-        setBlockedSites(Number.isFinite(payload.blockedSites) ? payload.blockedSites : null);
-        setRangeUsageMinutes(Number.isFinite(payload.rangeUsageMinutes) ? payload.rangeUsageMinutes : null);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to load dashboard.";
-        setDashboardError(message);
-        setUsageData([]);
-        setCategoryData([]);
-        setRiskData([]);
-        setSafetyScore(null);
-        setBlockedSites(null);
-        setRangeUsageMinutes(null);
-      } finally {
-        setDashboardLoading(false);
+        throw new Error(message);
       }
-    };
-
-    void loadDashboard();
+      const payload: {
+        usageTimeline: UsagePoint[];
+        categoryData: CategorySlice[];
+        riskData: RiskPoint[];
+        categoryWebsiteDetails: CategoryWebsiteDetail[];
+        riskWebsiteDetails: RiskWebsiteDetail[];
+        safetyScore: number;
+        blockedSites: number;
+        rangeUsageMinutes: number;
+      } = await response.json();
+      setUsageData(payload.usageTimeline ?? []);
+      setCategoryData(payload.categoryData ?? []);
+      setRiskData(payload.riskData ?? []);
+      setCategoryWebsiteDetails(payload.categoryWebsiteDetails ?? []);
+      setRiskWebsiteDetails(payload.riskWebsiteDetails ?? []);
+      setSafetyScore(Number.isFinite(payload.safetyScore) ? payload.safetyScore : null);
+      setBlockedSites(Number.isFinite(payload.blockedSites) ? payload.blockedSites : null);
+      setRangeUsageMinutes(Number.isFinite(payload.rangeUsageMinutes) ? payload.rangeUsageMinutes : null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load dashboard.";
+      setDashboardError(message);
+      setUsageData([]);
+      setCategoryData([]);
+      setRiskData([]);
+      setCategoryWebsiteDetails([]);
+      setRiskWebsiteDetails([]);
+      setSafetyScore(null);
+      setBlockedSites(null);
+      setRangeUsageMinutes(null);
+    } finally {
+      setDashboardLoading(false);
+      setDashboardRefreshing(false);
+    }
   }, [selectedChildId, timeFilter, user?.id]);
+
+  useEffect(() => {
+    void loadDashboard(false);
+  }, [loadDashboard]);
 
   const generatePin = () => {
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -381,9 +400,15 @@ export default function HomeDashboard() {
               usageData={usageData}
               categoryData={categoryData}
               riskData={riskData}
+              categoryWebsiteDetails={categoryWebsiteDetails}
+              riskWebsiteDetails={riskWebsiteDetails}
               timeFilter={timeFilter}
               onChangeTimeFilter={setTimeFilter}
               onChangeChild={setSelectedChildId}
+              onRefresh={() => {
+                void loadDashboard(true);
+              }}
+              refreshing={dashboardRefreshing}
             />
           </>
         );

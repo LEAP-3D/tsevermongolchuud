@@ -2,7 +2,6 @@ const API_BASE = "http://localhost:5000/api/auth";
 let remainingTimer = null;
 const popupStatusEl = document.getElementById("popup-status");
 
-// DOM Elements
 const views = {
   parentLogin: document.getElementById("view-parent-login"),
   childSelect: document.getElementById("view-child-select"),
@@ -11,7 +10,7 @@ const views = {
   logoutConfirm: document.getElementById("view-logout-confirm"),
 };
 
-let selectedChildTemp = null; // PIN хийхээр сонгосон хүүхэд
+let selectedChildTemp = null;
 
 function setGlobalStatus(message, isError = false) {
   if (!popupStatusEl) return;
@@ -28,7 +27,6 @@ function setButtonBusy(buttonEl, busy, busyLabel) {
   buttonEl.innerText = busy ? busyLabel : buttonEl.dataset.defaultLabel;
 }
 
-// Init
 document.addEventListener("DOMContentLoaded", async () => {
   setGlobalStatus("Loading session...");
   const data = await chrome.storage.local.get([
@@ -41,8 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (!data.parentToken) {
     showView("parentLogin");
   } else if (data.activeChildId) {
-    document.getElementById("active-user-name").innerText =
-      data.activeChildName;
+    document.getElementById("active-user-name").innerText = data.activeChildName;
     showView("dashboard");
     startRemainingPolling(data.activeChildId);
   } else {
@@ -52,9 +49,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setGlobalStatus("");
 });
 
-// --- ACTIONS ---
-
-// 1. Parent Login
 document.getElementById("btn-p-login").onclick = async () => {
   const buttonEl = document.getElementById("btn-p-login");
   const email = document.getElementById("p-email").value;
@@ -75,24 +69,23 @@ document.getElementById("btn-p-login").onclick = async () => {
     if (data.success) {
       chrome.storage.local.set({
         parentToken: data.token,
-        childrenList: data.children, // [{id:1, name:"Bat"}, ...]
+        childrenList: data.children,
       });
       renderChildList(data.children);
       showView("childSelect");
       setGlobalStatus("");
     } else {
-      errBox.innerText = data.message || "Нэвтрэх бүтсэнгүй";
+      errBox.innerText = data.message || "Sign in failed.";
       setGlobalStatus("Login failed.", true);
     }
-  } catch (e) {
-    errBox.innerText = "Сервертэй холбогдож чадсангүй";
+  } catch {
+    errBox.innerText = "Could not connect to server.";
     setGlobalStatus("Server connection failed.", true);
   } finally {
     setButtonBusy(buttonEl, false, "");
   }
 };
 
-// 2. Child Select & PIN
 function renderChildList(children) {
   const container = document.getElementById("child-list");
   container.innerHTML = "";
@@ -102,8 +95,7 @@ function renderChildList(children) {
     btn.innerText = child.name;
     btn.onclick = () => {
       selectedChildTemp = child;
-      document.getElementById("pin-title").innerText =
-        `${child.name} - PIN код?`;
+      document.getElementById("pin-title").innerText = `${child.name} - PIN code?`;
       document.getElementById("child-pin").value = "";
       showView("pinEntry");
     };
@@ -117,7 +109,7 @@ document.getElementById("btn-verify-pin").onclick = async () => {
   const errBox = document.getElementById("err-pin");
   errBox.innerText = "";
   if (!selectedChildTemp?.id) {
-    errBox.innerText = "Хүүхэд сонгоно уу";
+    errBox.innerText = "Please select a child.";
     return;
   }
   setGlobalStatus("Verifying PIN...");
@@ -136,32 +128,29 @@ document.getElementById("btn-verify-pin").onclick = async () => {
         activeChildId: selectedChildTemp.id,
         activeChildName: selectedChildTemp.name,
       });
-      document.getElementById("active-user-name").innerText =
-        selectedChildTemp.name;
+      document.getElementById("active-user-name").innerText = selectedChildTemp.name;
       showView("dashboard");
       startRemainingPolling(selectedChildTemp.id);
       setGlobalStatus("");
 
-      // "Login Required" хуудсыг хаах эсвэл refresh хийх
       chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         chrome.tabs.reload(tabs[0].id);
       });
     } else {
-      errBox.innerText = "PIN код буруу байна";
+      errBox.innerText = "Incorrect PIN code.";
       setGlobalStatus("PIN verification failed.", true);
     }
-  } catch (e) {
-    errBox.innerText = "Алдаа гарлаа";
+  } catch {
+    errBox.innerText = "Something went wrong.";
     setGlobalStatus("PIN verification failed.", true);
   } finally {
     setButtonBusy(buttonEl, false, "");
   }
 };
 
-document.getElementById("btn-back-select").onclick = () =>
-  showView("childSelect");
+document.getElementById("btn-back-select").onclick = () => showView("childSelect");
 
-async function resetDailyTimerFor15Minutes() {
+async function resetDailyTimer() {
   const statusEl = document.getElementById("reset-status");
   const buttonEl = document.getElementById("btn-reset-timer");
   const storage = await chrome.storage.local.get(["parentToken", "activeChildId"]);
@@ -172,7 +161,17 @@ async function resetDailyTimerFor15Minutes() {
     return;
   }
 
-  const password = window.prompt("Enter parent password to reset timer (+15m):");
+  const remainingRes = await fetch(
+    `${API_BASE}/daily-remaining?childId=${encodeURIComponent(String(storage.activeChildId))}`,
+  );
+  const remainingPayload = await remainingRes.json().catch(() => ({}));
+  const limitSeconds = Number(remainingPayload?.limitSeconds);
+  if (!remainingRes.ok || !Number.isFinite(limitSeconds) || limitSeconds <= 0) {
+    if (statusEl) statusEl.innerText = "No daily limit is configured for this child.";
+    return;
+  }
+
+  const password = window.prompt("Enter parent password to reset timer:");
   if (!password) return;
 
   setButtonBusy(buttonEl, true, "Resetting...");
@@ -185,7 +184,7 @@ async function resetDailyTimerFor15Minutes() {
         token: storage.parentToken,
         password,
         childId: storage.activeChildId,
-        seconds: 15 * 60,
+        seconds: limitSeconds,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -195,7 +194,7 @@ async function resetDailyTimerFor15Minutes() {
       return;
     }
 
-    if (statusEl) statusEl.innerText = "Timer reset: 15 minutes available.";
+    if (statusEl) statusEl.innerText = "Timer reset to full daily limit.";
     await updateRemaining(storage.activeChildId);
     setGlobalStatus("Daily timer reset applied.");
 
@@ -212,7 +211,6 @@ async function resetDailyTimerFor15Minutes() {
   }
 }
 
-// 3. Switch User (Logout Child only)
 document.getElementById("btn-switch-user").onclick = () => {
   const buttonEl = document.getElementById("btn-switch-user");
   setButtonBusy(buttonEl, true, "Switching...");
@@ -232,7 +230,6 @@ document.getElementById("btn-switch-user").onclick = () => {
       showView("childSelect");
       setGlobalStatus("");
       setButtonBusy(buttonEl, false, "");
-      // Reload current tab to force block
       chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         chrome.tabs.reload(tabs[0].id);
       });
@@ -241,30 +238,24 @@ document.getElementById("btn-switch-user").onclick = () => {
 };
 
 document.getElementById("btn-reset-timer").onclick = () => {
-  void resetDailyTimerFor15Minutes();
+  void resetDailyTimer();
 };
 
-// 4. Parent Logout (Full Logout)
-document.getElementById("btn-p-logout").onclick = () =>
-  showView("logoutConfirm");
-document.getElementById("btn-cancel-logout").onclick = () =>
-  showView("childSelect");
+document.getElementById("btn-p-logout").onclick = () => showView("logoutConfirm");
+document.getElementById("btn-cancel-logout").onclick = () => showView("childSelect");
 
 document.getElementById("btn-confirm-logout").onclick = async () => {
   const buttonEl = document.getElementById("btn-confirm-logout");
   const password = document.getElementById("logout-pass").value;
   if (!password) {
-    document.getElementById("err-logout").innerText = "Нууц үг оруулна уу";
+    document.getElementById("err-logout").innerText = "Please enter parent password.";
     return;
   }
   setButtonBusy(buttonEl, true, "Logging out...");
   setGlobalStatus("Logging out...");
-  // Password verify API дуудна (Security)
-  // ... (API call simulation)
-  // if success:
   chrome.storage.local.clear(() => {
     stopRemainingPolling();
-    location.reload(); // Reset popup
+    location.reload();
   });
 };
 
@@ -316,7 +307,6 @@ function startRemainingPolling(childId) {
   }, 1000);
 }
 
-// Helper: View Switcher
 function showView(viewName) {
   if (viewName !== "dashboard") {
     stopRemainingPolling();

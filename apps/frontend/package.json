@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "postinstall": "prisma generate --schema ../../prisma/schema.prisma && node scripts/sync-prisma-client.cjs",
+    "postinstall": "prisma generate --schema ../../prisma/schema.prisma",
     "dev": "next dev -p 0",
     "build": "next build --webpack",
     "start": "next start",
