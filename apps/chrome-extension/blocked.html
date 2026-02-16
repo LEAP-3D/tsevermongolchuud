@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Хязгаарлагдсан</title>
+    <title>Blocked</title>
     <style>
       :root {
         --bg: #f2f2f7;
@@ -61,19 +61,96 @@
         color: var(--danger);
         font-weight: 500;
       }
+
+      .status {
+        margin-top: 12px;
+        font-size: 13px;
+        color: var(--subtext);
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      .status.success {
+        color: var(--success, #34c759);
+      }
+
+      .unblock-card {
+        margin-top: 18px;
+        padding: 14px;
+        border: 1px solid #e5e5ea;
+        border-radius: 12px;
+        background: #fafafa;
+        text-align: left;
+      }
+
+      .unblock-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: #3a3a3c;
+        font-weight: 600;
+      }
+
+      .unblock-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 11px;
+        border-radius: 9px;
+        border: 1px solid #d1d1d6;
+        font-size: 14px;
+        outline: none;
+        margin-bottom: 8px;
+      }
+
+      .unblock-input:focus {
+        border-color: #007aff;
+        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
+      }
+
+      .unblock-btn {
+        width: 100%;
+        border: none;
+        border-radius: 9px;
+        padding: 10px 12px;
+        background: #007aff;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .unblock-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .error {
+        min-height: 18px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--danger);
+      }
     </style>
   </head>
 
   <body>
     <div class="card">
-      <div class="icon">⛔</div>
-      <h1>Сайт хаагдсан</h1>
-      <p>
-        Энэ сайт хүүхдэд тохирохгүй гэж
-        <strong>AI хамгаалалт</strong>
-        илрүүлсэн тул хандалтыг хаалаа.
+      <div class="icon">!</div>
+      <h1>Site Blocked</h1>
+      <p id="block-explanation">
+        This site was flagged by <strong>AI safety protection</strong> and access has been blocked.
       </p>
-      <p class="notice">Эцэг эхэд мэдэгдэл илгээгдсэн.</p>
+      <p class="notice" id="block-notice">A parent notification has been sent.</p>
+      <p class="status" id="auto-status">Checking for policy updates...</p>
+      <div class="unblock-card">
+        <p class="unblock-title">Parent Unblock</p>
+        <input id="parent-pass" type="password" class="unblock-input" placeholder="Parent password" />
+        <button id="btn-parent-unblock" class="unblock-btn">Unblock for 15 minutes</button>
+        <div class="error" id="unblock-error"></div>
+      </div>
     </div>
+
+    <script src="blocked.js"></script>
   </body>
 </html>

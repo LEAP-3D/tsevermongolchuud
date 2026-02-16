@@ -1,6 +1,13 @@
 "use client";
 
-import type { CategorySlice, Child, RiskPoint, UsagePoint } from './types';
+import type {
+  CategorySlice,
+  CategoryWebsiteDetail,
+  Child,
+  RiskPoint,
+  RiskWebsiteDetail,
+  UsagePoint
+} from './types';
 import DashboardHeader from './DashboardHeader';
 import DashboardStats from './DashboardStats';
 import UsageTimeline from './UsageTimeline';
@@ -15,9 +22,13 @@ export type DashboardContentProps = {
   usageData: UsagePoint[];
   categoryData: CategorySlice[];
   riskData: RiskPoint[];
+  categoryWebsiteDetails: CategoryWebsiteDetail[];
+  riskWebsiteDetails: RiskWebsiteDetail[];
   timeFilter: string;
   onChangeTimeFilter: (filter: string) => void;
   onChangeChild: (childId: number) => void;
+  onRefresh: () => void;
+  refreshing?: boolean;
 };
 
 export default function DashboardContent({
@@ -29,9 +40,13 @@ export default function DashboardContent({
   usageData,
   categoryData,
   riskData,
+  categoryWebsiteDetails,
+  riskWebsiteDetails,
   timeFilter,
   onChangeTimeFilter,
-  onChangeChild
+  onChangeChild,
+  onRefresh,
+  refreshing = false,
 }: DashboardContentProps) {
   const selectedChild = childrenData.find(child => child.id === selectedChildId) ?? null;
   const childOptions = childrenData.map(child => ({ id: child.id, name: child.name }));
@@ -44,6 +59,8 @@ export default function DashboardContent({
         onChangeChild={onChangeChild}
         timeFilter={timeFilter}
         onChangeTimeFilter={onChangeTimeFilter}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
       />
       <DashboardStats
         selectedChild={selectedChild}
@@ -53,7 +70,13 @@ export default function DashboardContent({
         timeFilter={timeFilter}
       />
       <UsageTimeline childName={selectedChild?.name} usageData={usageData} timeFilter={timeFilter} />
-      <DashboardBreakdown childName={selectedChild?.name} categoryData={categoryData} riskData={riskData} />
+      <DashboardBreakdown
+        childName={selectedChild?.name}
+        categoryData={categoryData}
+        riskData={riskData}
+        categoryWebsiteDetails={categoryWebsiteDetails}
+        riskWebsiteDetails={riskWebsiteDetails}
+      />
     </div>
   );
 }

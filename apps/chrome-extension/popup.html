@@ -139,6 +139,56 @@
         margin: 8px 0;
         text-align: center;
       }
+
+      .remaining-wrap {
+        margin-top: 10px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: #fafafa;
+        text-align: center;
+      }
+
+      .remaining-label {
+        font-size: 11px;
+        color: var(--subtext);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .remaining-value {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .mini-btn {
+        margin-top: 8px;
+        padding: 9px;
+        font-size: 13px;
+        border-radius: 8px;
+      }
+
+      .mini-status {
+        margin-top: 6px;
+        min-height: 16px;
+        font-size: 12px;
+        color: var(--subtext);
+        text-align: center;
+      }
+
+      .global-status {
+        margin-top: 10px;
+        min-height: 16px;
+        font-size: 12px;
+        color: var(--subtext);
+        text-align: center;
+      }
+
+      .global-status.error {
+        color: var(--danger);
+      }
     </style>
   </head>
 
@@ -146,51 +196,52 @@
     <div class="container">
       <div class="card">
         <div id="view-parent-login" class="hidden">
-          <h3>Эцэг эхийн нэвтрэх</h3>
-          <input type="email" id="p-email" placeholder="И-мэйл" />
-          <input type="password" id="p-pass" placeholder="Нууц үг" />
-          <button id="btn-p-login">Нэвтрэх</button>
+          <h3>Parent Sign In</h3>
+          <input type="email" id="p-email" placeholder="Email" />
+          <input type="password" id="p-pass" placeholder="Password" />
+          <button id="btn-p-login">Sign In</button>
           <p class="error" id="err-login"></p>
         </div>
 
         <div id="view-child-select" class="hidden">
-          <h3>Хэн хэрэглэх вэ?</h3>
-          <p class="status">Холболт идэвхтэй</p>
+          <h3>Who is using this?</h3>
+          <p class="status">Connection active</p>
           <div id="child-list"></div>
           <hr />
-          <button id="btn-p-logout" class="danger">Эцэг эх гарах</button>
+          <button id="btn-p-logout" class="danger">Parent Sign Out</button>
         </div>
 
         <div id="view-pin" class="hidden">
-          <h3 id="pin-title">PIN код</h3>
-          <input
-            type="password"
-            id="child-pin"
-            placeholder="4 оронтой PIN"
-            maxlength="4"
-          />
-          <button id="btn-verify-pin">Эхлүүлэх</button>
-          <button id="btn-back-select" class="secondary">Буцах</button>
+          <h3 id="pin-title">PIN Code</h3>
+          <input type="password" id="child-pin" placeholder="4-digit PIN" maxlength="4" />
+          <button id="btn-verify-pin">Start</button>
+          <button id="btn-back-select" class="secondary">Back</button>
           <p class="error" id="err-pin"></p>
         </div>
 
         <div id="view-dashboard" class="hidden">
           <h3>SafeKid</h3>
           <div id="active-user-name">User</div>
-          <p>Хамгаалалт идэвхтэй</p>
-          <button id="btn-switch-user" class="secondary">
-            Хэрэглэгч солих
-          </button>
+          <p>Protection active</p>
+          <div class="remaining-wrap">
+            <div class="remaining-label">Daily time remaining</div>
+            <div class="remaining-value" id="daily-remaining">--</div>
+          </div>
+          <button id="btn-reset-timer" class="mini-btn secondary">Reset Timer</button>
+          <div class="mini-status" id="reset-status"></div>
+          <button id="btn-switch-user" class="secondary">Switch User</button>
         </div>
 
         <div id="view-logout-confirm" class="hidden">
-          <h3>Баталгаажуулалт</h3>
-          <p>Эцэг эхийн нууц үг оруулна уу</p>
-          <input type="password" id="logout-pass" placeholder="Нууц үг" />
-          <button id="btn-confirm-logout" class="danger">Гарах</button>
-          <button id="btn-cancel-logout" class="secondary">Болих</button>
+          <h3>Confirmation</h3>
+          <p>Enter parent password</p>
+          <input type="password" id="logout-pass" placeholder="Password" />
+          <button id="btn-confirm-logout" class="danger">Sign Out</button>
+          <button id="btn-cancel-logout" class="secondary">Cancel</button>
           <p class="error" id="err-logout"></p>
         </div>
+
+        <p id="popup-status" class="global-status"></p>
       </div>
     </div>
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { attachSessionCookie, createSessionToken } from "@/lib/session";
 
 export async function POST(req: Request) {
   try {
@@ -21,7 +22,12 @@ export async function POST(req: Request) {
       select: { id: true, email: true, name: true },
     });
 
-    return NextResponse.json({ user });
+    const session = createSessionToken({ userId: user.id, email: user.email });
+    const response = NextResponse.json({
+      user: { ...user, expiresAt: session.expiresAt * 1000 },
+    });
+    attachSessionCookie(response, session);
+    return response;
   } catch (error) {
     const isUniqueError =
       typeof error === "object" &&

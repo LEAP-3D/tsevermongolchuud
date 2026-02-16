@@ -2,40 +2,44 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../lib/prisma");
 const { classifyWebsite } = require("../lib/ai");
-const { checkTimeLimit } = require("../lib/timeUtils"); // Өмнө бичсэн цаг шалгах функц
+const { checkTimeLimit, checkGlobalDailyLimit } = require("../lib/timeUtils");
 
 // POST: /api/check-url
 router.post("/", async (req, res, next) => {
   try {
-    const { childId, url } = req.body;
+    const { childId, url, dryRun } = req.body;
+    const isDryRun = Boolean(dryRun);
 
     if (!childId || !url) {
-      return res.status(400).json({ action: "ALLOWED", error: "Missing data" });
+      return res.status(400).json({
+        action: "ALLOWED",
+        reason: "INVALID_INPUT",
+        source: "SYSTEM",
+        error: "Missing data",
+      });
     }
 
-    // 1. URL Parse хийх
+    // 1. Parse URL
     let domain;
     try {
       const urlObj = new URL(url);
       domain = urlObj.hostname.replace(/^www\./, "");
-    } catch (e) {
-      // Хэрэв URL буруу бол (жишээ нь chrome://) зөвшөөрнө
-      return res.json({ action: "ALLOWED" });
+    } catch {
+      // Allow invalid/non-http schemes such as chrome://
+      return res.json({ action: "ALLOWED", reason: "NON_HTTP_URL", source: "SYSTEM" });
     }
 
-    // 2. Баазаас (Catalog) хайх
+    // 2. Find or classify domain
     let catalogEntry = await prisma.urlCatalog.findUnique({
       where: { domain },
     });
 
-    // --- AI ХЭСЭГ ---
     if (!catalogEntry) {
-      console.log(`🤖 Gemini шинжилж байна: ${domain}`);
+      console.log(`[AI] Gemini analyzing: ${domain}`);
       const aiResult = await classifyWebsite(domain);
 
       if (aiResult) {
         try {
-          // A. Категори нь CategoryCatalog-д байгаа эсэхийг шалгах, байхгүй бол үүсгэх
           let categoryEntry = await prisma.categoryCatalog.findUnique({
             where: { name: aiResult.category },
           });
@@ -46,44 +50,52 @@ router.post("/", async (req, res, next) => {
             });
           }
 
-          // B. URL Catalog-д хадгалах
           catalogEntry = await prisma.urlCatalog.create({
             data: {
-              domain: domain,
+              domain,
               categoryName: aiResult.category,
               safetyScore: aiResult.safetyScore,
               tags: [aiResult.category],
             },
           });
-          console.log(
-            `✅ ${domain} -> ${aiResult.category} (${aiResult.safetyScore})`,
-          );
+          console.log(`[OK] ${domain} -> ${aiResult.category} (${aiResult.safetyScore})`);
         } catch (dbErr) {
           console.error("Catalog Save Error:", dbErr);
-          // Алдаа гарсан ч кодыг зогсоохгүйгээр default утгаар үргэлжлүүлнэ
           catalogEntry = { categoryName: "Uncategorized", safetyScore: 50 };
         }
       }
     }
 
-    // Хэрэв AI болон Баазаас олдоогүй бол
     if (!catalogEntry) {
-      return res.json({ action: "ALLOWED" });
+      // Keep unknown domains in catalog so later policy checks stay consistent.
+      catalogEntry = await prisma.urlCatalog
+        .create({
+          data: {
+            domain,
+            categoryName: "Uncategorized",
+            safetyScore: 50,
+            tags: ["Uncategorized"],
+          },
+        })
+        .catch(() => ({
+          id: 0,
+          domain,
+          categoryName: "Uncategorized",
+          safetyScore: 50,
+        }));
     }
 
-    // 3. ТОХИРГОО ШАЛГАХ (Parallel Query)
+    // 3. Load child settings
     const categoryInfo = await prisma.categoryCatalog.findUnique({
       where: { name: catalogEntry.categoryName },
     });
 
     const [urlSetting, categorySetting] = await Promise.all([
-      // A. Тусгай URL тохиргоо
       prisma.childUrlSetting.findUnique({
         where: {
           childId_urlId: { childId: Number(childId), urlId: catalogEntry.id },
         },
       }),
-      // B. Категорийн тохиргоо
       categoryInfo
         ? prisma.childCategorySetting.findUnique({
             where: {
@@ -96,76 +108,97 @@ router.post("/", async (req, res, next) => {
         : null,
     ]);
 
-    // 4. ШИЙДВЭР ГАРГАХ (Decision Engine)
+    // 4. Decision engine
     let action = "ALLOWED";
     let blockReason = "NONE";
+    let blockSource = "SYSTEM";
+    const hasSafetyScore = typeof catalogEntry.safetyScore === "number";
+    const isCustomDomain = catalogEntry.categoryName === "Custom";
+    const isDangerousScore = hasSafetyScore && catalogEntry.safetyScore < 50;
 
-    // Шат 1: Аюулгүй байдлын оноо
-    if (catalogEntry.safetyScore < 50) {
+    // Step 1: AI safety score
+    if (isDangerousScore && !isCustomDomain) {
       action = "BLOCK";
       blockReason = "DANGEROUS_CONTENT";
+      blockSource = "AI";
     }
 
-    // Шат 2: Категорийн тохиргоо
+    // Step 2: Category policy
     if (categorySetting && categorySetting.status === "BLOCKED") {
       action = "BLOCK";
       blockReason = "CATEGORY_BLOCKED";
+      blockSource = categorySetting.timeLimit === -1 ? "AI" : "PARENT";
     }
 
-    // Шат 3: Тусгай URL тохиргоо (Override)
+    // Step 3: URL override policy
     if (urlSetting) {
       if (urlSetting.status === "BLOCKED") {
         action = "BLOCK";
-        blockReason = "PARENT_BLOCKED";
+        blockReason = "URL_BLOCKED";
+        blockSource = urlSetting.timeLimit === -1 ? "AI" : "PARENT";
       } else if (urlSetting.status === "ALLOWED") {
         action = "ALLOWED";
         blockReason = "PARENT_ALLOWED";
+        blockSource = "PARENT";
       }
     }
 
-    // Шат 4: ЦАГИЙН ХЯЗГААР (Time Limit)
-    // Хэрэв хараахан блоклогдоогүй бөгөөд категори олдсон бол цагийг шалгана
+    // Step 4: Category time limit
     if (action !== "BLOCK" && categoryInfo) {
       const timeStatus = await checkTimeLimit(childId, categoryInfo.id);
-
       if (timeStatus.isBlocked) {
         action = "BLOCK";
         blockReason = "TIME_LIMIT_EXCEEDED";
+        blockSource = "SYSTEM";
       }
     }
 
-    // 5. ALERT SYSTEM
-    if (action === "BLOCK" && catalogEntry.safetyScore < 50) {
+    // Step 5: Global daily limit
+    const globalDailyStatus = await checkGlobalDailyLimit(Number(childId));
+    if (globalDailyStatus.isBlocked) {
+      action = "BLOCK";
+      blockReason = "DAILY_LIMIT_EXCEEDED";
+      blockSource = "SYSTEM";
+    }
+
+    // 6. Alert logging for dangerous sites
+    if (!isDryRun && action === "BLOCK" && isDangerousScore && !isCustomDomain) {
       await prisma.alert
         .create({
           data: {
             childId: Number(childId),
             type: "DANGEROUS_CONTENT",
-            message: `${catalogEntry.domain} сайт руу нэвтрэхийг хориглолоо. (${catalogEntry.categoryName})`,
+            message: `Blocked access to ${catalogEntry.domain}. (${catalogEntry.categoryName})`,
             isSent: false,
           },
         })
         .catch((e) => console.error("Alert error:", e));
     }
 
-    // 6. HISTORY LOGGING
-    const historyAction = action === "BLOCK" ? "BLOCKED" : "ALLOWED";
+    // 7. History logging
+    if (!isDryRun) {
+      const historyAction = action === "BLOCK" ? "BLOCKED" : "ALLOWED";
 
-    prisma.history
-      .create({
-        data: {
-          childId: Number(childId),
-          fullUrl: url,
-          domain: domain,
-          categoryName: catalogEntry.categoryName,
-          actionTaken: historyAction,
-          duration: 0, // Зөвхөн хандалт, хугацааг trackTime-д тооцно
-        },
-      })
-      .catch((err) => console.error("History Save Error:", err));
+      prisma.history
+        .create({
+          data: {
+            childId: Number(childId),
+            fullUrl: url,
+            domain,
+            categoryName: catalogEntry.categoryName,
+            actionTaken: historyAction,
+            duration: 0,
+          },
+        })
+        .catch((err) => console.error("History Save Error:", err));
+    }
 
-    // 7. Хариу буцаах
-    return res.json({ action });
+    return res.json({
+      action,
+      reason: blockReason,
+      source: blockSource,
+      domain,
+    });
   } catch (error) {
     next(error);
   }

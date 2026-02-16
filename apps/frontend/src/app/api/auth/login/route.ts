@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { attachSessionCookie, createSessionToken } from "@/lib/session";
 
 export async function POST(req: Request) {
   try {
@@ -20,9 +21,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
 
-    return NextResponse.json({
-      user: { id: user.id, email: user.email, name: user.name },
+    const session = createSessionToken({ userId: user.id, email: user.email });
+    const response = NextResponse.json({
+      user: { id: user.id, email: user.email, name: user.name, expiresAt: session.expiresAt * 1000 },
     });
+    attachSessionCookie(response, session);
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Login failed.";
     return NextResponse.json({ error: message }, { status: 500 });

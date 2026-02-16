@@ -264,7 +264,15 @@ export default function SettingsContent() {
         <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3">Account</h3>
         <p className="text-sm text-gray-500 mb-4">Sign out of your account on this device.</p>
         <button
-          onClick={() => {
+          onClick={async () => {
+            try {
+              await fetch("/api/auth/logout", {
+                method: "POST",
+                credentials: "include",
+              });
+            } catch {
+              // ignore logout network errors; local state is still cleared
+            }
             clearStoredUser();
             router.push("/login");
           }}

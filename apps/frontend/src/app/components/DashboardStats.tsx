@@ -82,7 +82,7 @@ export default function DashboardStats({ selectedChild, rangeUsage, safetyScore,
             <p className="text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
               {blockedSites === null ? "--" : blockedSites}
             </p>
-            <span className="text-sm text-gray-500">Selected range</span>
+            <span className="text-sm text-gray-500">Current policy</span>
           </div>
           <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500 rounded-full flex items-center justify-center">
             <Ban className="w-5 h-5 md:w-6 md:h-6 text-white" />

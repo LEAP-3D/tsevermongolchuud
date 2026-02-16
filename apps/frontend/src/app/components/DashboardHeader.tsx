@@ -7,6 +7,8 @@ export type DashboardHeaderProps = {
   onChangeChild: (childId: number) => void;
   timeFilter: string;
   onChangeTimeFilter: (filter: string) => void;
+  onRefresh: () => void;
+  refreshing?: boolean;
 };
 
 export default function DashboardHeader({
@@ -15,7 +17,9 @@ export default function DashboardHeader({
   selectedChildId,
   onChangeChild,
   timeFilter,
-  onChangeTimeFilter
+  onChangeTimeFilter,
+  onRefresh,
+  refreshing = false,
 }: DashboardHeaderProps) {
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -58,6 +62,13 @@ export default function DashboardHeader({
             </button>
           ))}
         </div>
+        <button
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="w-full sm:w-auto rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {refreshing ? "Refreshing..." : "Refresh"}
+        </button>
       </div>
     </div>
   );

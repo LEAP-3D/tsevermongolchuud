@@ -2,23 +2,38 @@
 /* eslint-disable max-lines */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ban } from 'lucide-react';
+import { Ban, Trash2 } from 'lucide-react';
+import Image from 'next/image';
 import { useAuthUser } from '@/lib/auth';
 
 type BlockingCategory = {
   id: number;
   name: string;
   status: 'ALLOWED' | 'BLOCKED' | 'LIMITED';
+  source?: 'PARENT' | 'AI' | null;
 };
+
+type BlockedSite = {
+  domain: string;
+  source: 'PARENT' | 'AI';
+};
+
+const normalizeDomain = (raw: string) =>
+  raw.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+
+const getFaviconUrl = (domain: string) =>
+  `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(domain)}`;
 
 export default function BlockingContent() {
   const { user } = useAuthUser();
   const [children, setChildren] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [categories, setCategories] = useState<BlockingCategory[]>([]);
-  const [customBlocks, setCustomBlocks] = useState<string[]>([]);
+  const [customBlocks, setCustomBlocks] = useState<BlockedSite[]>([]);
+  const [selectedSites, setSelectedSites] = useState<string[]>([]);
   const [siteInput, setSiteInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
 
   const loadChildren = useCallback(async () => {
@@ -54,14 +69,30 @@ export default function BlockingContent() {
         }
         throw new Error(message);
       }
-      const payload: { categories: BlockingCategory[]; blockedSites: string[] } = await response.json();
+      const payload: {
+        categories: BlockingCategory[];
+        blockedSites: Array<string | { id?: number; domain: string; source?: 'PARENT' | 'AI' }>;
+      } = await response.json();
+      const mappedSites = (payload.blockedSites ?? [])
+        .map((site) => {
+          if (typeof site === 'string') {
+            return { domain: normalizeDomain(site), source: 'PARENT' as const };
+          }
+          return {
+            domain: normalizeDomain(site.domain),
+            source: site.source === 'AI' ? 'AI' as const : 'PARENT' as const,
+          };
+        })
+        .filter((site) => site.domain.length > 0);
       setCategories(payload.categories ?? []);
-      setCustomBlocks(payload.blockedSites ?? []);
+      setCustomBlocks(mappedSites);
+      setSelectedSites([]);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load blocking.';
       setError(message);
       setCategories([]);
       setCustomBlocks([]);
+      setSelectedSites([]);
     } finally {
       setLoading(false);
     }
@@ -77,6 +108,7 @@ export default function BlockingContent() {
     } else {
       setCategories([]);
       setCustomBlocks([]);
+      setSelectedSites([]);
     }
   }, [loadBlocking, selectedChildId, user?.id]);
 
@@ -90,6 +122,11 @@ export default function BlockingContent() {
     [customBlocks]
   );
 
+  const allSitesSelected = useMemo(
+    () => customBlocks.length > 0 && selectedSites.length === customBlocks.length,
+    [customBlocks.length, selectedSites.length]
+  );
+
   const toggleCategory = async (id: number) => {
     if (!selectedChildId) return;
     const target = categories.find(category => category.id === id);
@@ -97,7 +134,9 @@ export default function BlockingContent() {
     const nextEnabled = target.status !== 'BLOCKED';
     setCategories(prev =>
       prev.map(category =>
-        category.id === id ? { ...category, status: nextEnabled ? 'BLOCKED' : 'ALLOWED' } : category
+        category.id === id
+          ? { ...category, status: nextEnabled ? 'BLOCKED' : 'ALLOWED', source: nextEnabled ? 'PARENT' : null }
+          : category
       )
     );
 
@@ -117,11 +156,12 @@ export default function BlockingContent() {
   };
 
   const addCustomBlock = async () => {
-    const trimmed = siteInput.trim().toLowerCase();
+    const trimmed = normalizeDomain(siteInput);
     if (!trimmed) return;
     if (!selectedChildId) return;
-    if (customBlocks.includes(trimmed)) return;
+    if (customBlocks.some((item) => item.domain === trimmed)) return;
     setSiteInput('');
+    setUpdating(true);
     const response = await fetch('/api/blocking', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -132,8 +172,74 @@ export default function BlockingContent() {
       })
     });
     if (response.ok) {
-      setCustomBlocks(prev => [trimmed, ...prev]);
+      setCustomBlocks(prev => [
+        { domain: trimmed, source: 'PARENT' },
+        ...prev.filter((item) => item.domain !== trimmed),
+      ]);
+    } else if (selectedChildId) {
+      await loadBlocking(selectedChildId);
     }
+    setUpdating(false);
+  };
+
+  const removeCustomBlock = async (domain: string) => {
+    if (!selectedChildId) return;
+    setUpdating(true);
+    const response = await fetch('/api/blocking', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: selectedChildId,
+        parentId: user?.id,
+        domain
+      })
+    });
+    if (response.ok) {
+      setCustomBlocks(prev => prev.filter((item) => item.domain !== domain));
+      setSelectedSites(prev => prev.filter((item) => item !== domain));
+    } else {
+      await loadBlocking(selectedChildId);
+    }
+    setUpdating(false);
+  };
+
+  const removeSelectedSites = async () => {
+    if (!selectedChildId || selectedSites.length === 0) return;
+    setUpdating(true);
+    const response = await fetch('/api/blocking', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: selectedChildId,
+        parentId: user?.id,
+        domains: selectedSites
+      })
+    });
+    if (response.ok) {
+      const selected = new Set(selectedSites);
+      setCustomBlocks(prev => prev.filter((item) => !selected.has(item.domain)));
+      setSelectedSites([]);
+    } else {
+      await loadBlocking(selectedChildId);
+    }
+    setUpdating(false);
+  };
+
+  const toggleSiteSelect = (domain: string) => {
+    setSelectedSites(prev => {
+      if (prev.includes(domain)) {
+        return prev.filter((item) => item !== domain);
+      }
+      return [...prev, domain];
+    });
+  };
+
+  const toggleSelectAllSites = () => {
+    if (allSitesSelected) {
+      setSelectedSites([]);
+      return;
+    }
+    setSelectedSites(customBlocks.map((item) => item.domain));
   };
 
   return (
@@ -170,7 +276,7 @@ export default function BlockingContent() {
             <h3 className="text-lg font-semibold text-gray-900">Blocked Websites</h3>
             <span className="text-2xl font-bold text-red-600">{blockedSites}</span>
           </div>
-          <p className="text-sm text-gray-600">Sites automatically blocked this week</p>
+          <p className="text-sm text-gray-600">Sites currently blocked by Parent or AI</p>
         </div>
 
         <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
@@ -200,9 +306,24 @@ export default function BlockingContent() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{category.name}</p>
-                  <p className="text-xs text-gray-500">{category.status === 'BLOCKED' ? 'Blocked' : 'Allowed'}</p>
+                  <p className="text-xs text-gray-500">
+                    {category.status === 'BLOCKED'
+                      ? `Blocked by ${category.source === 'AI' ? 'AI' : 'Parent'}`
+                      : 'Allowed'}
+                  </p>
                 </div>
               </div>
+              {category.status === 'BLOCKED' && (
+                <span
+                  className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                    category.source === 'AI'
+                      ? 'bg-violet-100 text-violet-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}
+                >
+                  {category.source === 'AI' ? 'AI' : 'Parent'}
+                </span>
+              )}
               <button
                 onClick={() => toggleCategory(category.id)}
                 className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -228,20 +349,81 @@ export default function BlockingContent() {
           />
           <button
             onClick={addCustomBlock}
-            className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors"
+            disabled={updating || !selectedChildId}
+            className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Block Site
           </button>
         </div>
-        {customBlocks.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {customBlocks.map(site => (
-              <span
-                key={site}
-                className="px-3 py-1.5 rounded-full bg-white border border-blue-200 text-xs text-blue-700"
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-base md:text-lg font-semibold text-gray-900">Blocked Websites List</h3>
+          <button
+            onClick={removeSelectedSites}
+            disabled={selectedSites.length === 0 || updating}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Trash2 className="h-4 w-4" />
+            Remove Selected ({selectedSites.length})
+          </button>
+        </div>
+
+        <label className="mb-3 inline-flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={allSitesSelected}
+            onChange={toggleSelectAllSites}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Select all
+        </label>
+
+        {customBlocks.length === 0 ? (
+          <p className="text-sm text-gray-500">No custom blocked websites yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {customBlocks.map((site) => (
+              <div
+                key={site.domain}
+                className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5"
               >
-                {site}
-              </span>
+                <input
+                  type="checkbox"
+                  checked={selectedSites.includes(site.domain)}
+                  onChange={() => toggleSiteSelect(site.domain)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <Image
+                  src={getFaviconUrl(site.domain)}
+                  alt=""
+                  width={18}
+                  height={18}
+                  unoptimized
+                  className="h-[18px] w-[18px] rounded-sm"
+                />
+                <span className="flex-1 text-sm font-medium text-gray-900">{site.domain}</span>
+                <span
+                  className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                    site.source === 'AI'
+                      ? 'bg-violet-100 text-violet-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}
+                >
+                  {site.source === 'AI' ? 'AI' : 'Parent'}
+                </span>
+                <button
+                  onClick={() => {
+                    void removeCustomBlock(site.domain);
+                  }}
+                  disabled={updating}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove
+                </button>
+              </div>
             ))}
           </div>
         )}

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "postinstall": "prisma generate --schema prisma/schema.prisma",
-    "dev": "next dev",
-    "build": "next build --webpack",
+    "postinstall": "prisma generate --schema ../../prisma/schema.prisma",
+    "dev": "next dev -p 0",
+    "build": "npm run lint && next build --webpack",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
@@ -14,7 +14,7 @@
     "next": "^16.1.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^6.19.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -32,7 +32,7 @@
     "eslint-plugin-unused-imports": "^4.3.0",
     "lucide-react": "^0.563.0",
     "next-auth": "^4.24.13",
-    "prisma": "^5.22.0",
+    "prisma": "^6.19.2",
     "recharts": "^3.7.0",
     "tailwindcss": "^4",
     "typescript": "^5.0.0"

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SafeKid AI Guard",
   "version": "2.0",
-  "description": "Multi-user AI хяналтын систем",
+  "description": "Multi-user AI parental control system",
   "permissions": ["storage", "webNavigation", "tabs"],
   "host_permissions": ["http://localhost:5000/*", "<all_urls>"],
   "background": {
@@ -13,7 +13,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html", "login_required.html"],
+      "resources": ["blocked.html", "blocked.js", "login_required.html"],
       "matches": ["<all_urls>"]
     }
   ]
