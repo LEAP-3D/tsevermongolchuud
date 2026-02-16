@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "postinstall": "prisma generate --schema ../../prisma/schema.prisma",
+    "postinstall": "npm run db:generate",
+    "db:generate": "prisma generate && node scripts/sync-prisma-client.cjs",
     "dev": "next dev -p 0",
     "build": "npm run lint && next build --webpack",
     "start": "next start",
