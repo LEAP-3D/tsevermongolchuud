@@ -1,9 +1,16 @@
 name: CI
 on:
+  push:
+    branches: [test]
+    paths:
+      - "apps/frontend/**"
+      - "prisma/**"
+      - ".github/workflows/**"
   pull_request:
     branches: [main]
     paths:
       - "apps/frontend/**"
+      - "prisma/**"
       - ".github/workflows/**"
 
 permissions:
