@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "www.google.com",
+        pathname: "/s2/favicons",
+      },
+    ],
+  },
 
   experimental: {
     // other experimental features like 'ppr' or 'taint' go here

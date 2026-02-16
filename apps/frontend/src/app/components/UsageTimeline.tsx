@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { ArrowUpRight, X } from "lucide-react";
+import Image from "next/image";
 import type { UsagePoint } from "./types";
 
 export type UsageTimelineProps = {
@@ -281,9 +282,11 @@ export default function UsageTimeline({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex min-w-0 items-start gap-2">
-                        <img
-                          src={site.logoUrl || ""}
+                        <Image
+                          src={site.logoUrl || "/globe.svg"}
                           alt=""
+                          width={20}
+                          height={20}
                           className="mt-0.5 h-5 w-5 rounded border border-gray-100 bg-white"
                           loading="lazy"
                           referrerPolicy="no-referrer"

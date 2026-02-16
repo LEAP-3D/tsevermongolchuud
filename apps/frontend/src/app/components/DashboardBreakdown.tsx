@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ArrowUpRight, X } from 'lucide-react';
+import Image from 'next/image';
 import type { CategorySlice, CategoryWebsiteDetail, RiskPoint, RiskWebsiteDetail } from './types';
 
 export type DashboardBreakdownProps = {
@@ -290,9 +291,11 @@ export default function DashboardBreakdown({
                           className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
                         >
                           <div className="flex min-w-0 items-center gap-2">
-                            <img
-                              src={item.logoUrl || ''}
+                            <Image
+                              src={item.logoUrl || '/globe.svg'}
                               alt=""
+                              width={16}
+                              height={16}
                               className="h-4 w-4 shrink-0 rounded-sm border border-gray-100"
                               loading="lazy"
                               referrerPolicy="no-referrer"
@@ -387,9 +390,11 @@ export default function DashboardBreakdown({
                           className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5 text-sm"
                         >
                           <div className="flex min-w-0 items-center gap-2">
-                            <img
-                              src={item.logoUrl || ''}
+                            <Image
+                              src={item.logoUrl || '/globe.svg'}
                               alt=""
+                              width={16}
+                              height={16}
                               className="h-4 w-4 shrink-0 rounded-sm border border-gray-100"
                               loading="lazy"
                               referrerPolicy="no-referrer"
