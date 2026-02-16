@@ -8,10 +8,6 @@ on:
       - ".github/workflows/**"
   pull_request:
     branches: [main]
-    paths:
-      - "apps/frontend/**"
-      - "prisma/**"
-      - ".github/workflows/**"
 
 permissions:
   contents: read
