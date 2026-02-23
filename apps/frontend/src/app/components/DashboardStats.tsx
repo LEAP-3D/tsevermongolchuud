@@ -28,8 +28,8 @@ export default function DashboardStats({ selectedChild, rangeUsage, safetyScore,
         : "All-Time Usage";
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+    <div className="grid grid-cols-1 gap-3.5 md:grid-cols-3">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <p className="text-sm font-medium text-gray-500 mb-3">{usageLabel}</p>
@@ -44,12 +44,12 @@ export default function DashboardStats({ selectedChild, rangeUsage, safetyScore,
                   </div>
                   <span className="text-sm font-medium text-gray-700">{selectedChild.name}</span>
                 </div>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900 ml-8">{rangeUsage}</p>
+                <p className="text-lg md:text-xl font-semibold text-gray-900 ml-8">{rangeUsage}</p>
               </div>
             )}
           </div>
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <Clock className="w-5 h-5 md:w-6 md:h-6 text-white" />
+          <div className="h-9 w-9 md:h-10 md:w-10 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+            <Clock className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
         </div>
         <div className="flex items-center gap-1 pt-3 border-t border-gray-100">
@@ -58,11 +58,11 @@ export default function DashboardStats({ selectedChild, rangeUsage, safetyScore,
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm font-medium text-gray-500 mb-2">Safety Score</p>
-            <p className="text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
+            <p className="text-xl md:text-2xl font-semibold text-gray-900 mb-1">
               {safetyScore === null ? "--" : `${safetyScore}%`}
             </p>
             {safetyScore === null ? (
@@ -71,23 +71,23 @@ export default function DashboardStats({ selectedChild, rangeUsage, safetyScore,
               <span className="text-sm text-green-500 font-medium">{getSafetyLabel(safetyScore)}</span>
             )}
           </div>
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-green-500 rounded-full flex items-center justify-center">
-            <Shield className="w-5 h-5 md:w-6 md:h-6 text-white" />
+          <div className="h-9 w-9 md:h-10 md:w-10 bg-green-500 rounded-full flex items-center justify-center">
+            <Shield className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm font-medium text-gray-500 mb-2">Blocked Sites</p>
-            <p className="text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
+            <p className="text-xl md:text-2xl font-semibold text-gray-900 mb-1">
               {blockedSites === null ? "--" : blockedSites}
             </p>
             <span className="text-sm text-gray-500">Current policy</span>
           </div>
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500 rounded-full flex items-center justify-center">
-            <Ban className="w-5 h-5 md:w-6 md:h-6 text-white" />
+          <div className="h-9 w-9 md:h-10 md:w-10 bg-red-500 rounded-full flex items-center justify-center">
+            <Ban className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
         </div>
       </div>

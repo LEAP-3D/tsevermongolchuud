@@ -3,6 +3,7 @@
 import TeslaAuthLayout from "../../components/TeslaAuthLayout";
 import { useCallback, useState } from "react";
 import { setStoredUser, type AuthUser } from "@/lib/auth";
+import { detectSafekidExtensionInstalled } from "@/lib/extensionDetection";
 import ExtensionSetupCard from "../../components/ExtensionSetupCard";
 import SignUpForm from "../../components/SignUpForm";
 
@@ -13,28 +14,12 @@ export default function SignPage() {
   );
 
   const checkExtensionInstalled = useCallback(() => {
-    setExtensionStatus("checking");
-    let timeoutId: number | null = null;
-
-    const onMessage = (event: MessageEvent) => {
-      if (event.source !== window) return;
-      const payload = event.data;
-      if (payload?.source === "safekid-extension" && payload?.type === "SAFEKID_EXTENSION_INSTALLED") {
-        setExtensionStatus("installed");
-        if (timeoutId) {
-          window.clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        window.removeEventListener("message", onMessage);
-      }
+    const run = async () => {
+      setExtensionStatus("checking");
+      const installed = await detectSafekidExtensionInstalled();
+      setExtensionStatus(installed ? "installed" : "not-installed");
     };
-
-    window.addEventListener("message", onMessage);
-    window.postMessage({ type: "SAFEKID_EXTENSION_PING" }, "*");
-    timeoutId = window.setTimeout(() => {
-      setExtensionStatus("not-installed");
-      window.removeEventListener("message", onMessage);
-    }, 1500);
+    void run();
   }, []);
 
   return (

@@ -145,11 +145,11 @@ export default function BlockingContent({
     if (!selectedChildId) return;
     const target = categories.find(category => category.id === id);
     if (!target) return;
-    const nextEnabled = target.status !== 'BLOCKED';
+    const nextBlocked = target.status !== 'BLOCKED';
     setCategories(prev =>
       prev.map(category =>
         category.id === id
-          ? { ...category, status: nextEnabled ? 'BLOCKED' : 'ALLOWED', source: nextEnabled ? 'PARENT' : null }
+          ? { ...category, status: nextBlocked ? 'BLOCKED' : 'ALLOWED', source: nextBlocked ? 'PARENT' : null }
           : category
       )
     );
@@ -161,7 +161,7 @@ export default function BlockingContent({
         childId: selectedChildId,
         categoryId: id,
         parentId: user?.id,
-        enabled: nextEnabled
+        enabled: nextBlocked
       })
     });
     if (!response.ok) {
@@ -257,10 +257,10 @@ export default function BlockingContent({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-1">Content Blocking</h1>
-        <p className="text-sm md:text-base text-gray-500">Control what your children can access online</p>
+        <h1 className="text-xl md:text-3xl font-semibold text-gray-900 mb-1">Content Blocking</h1>
+        <p className="text-xs md:text-sm text-gray-500">Control what your children can access online</p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -285,38 +285,38 @@ export default function BlockingContent({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+        <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Blocked Websites</h3>
-            <span className="text-2xl font-bold text-red-600">{blockedSites}</span>
+            <h3 className="text-base font-semibold text-gray-900">Blocked Websites</h3>
+            <span className="text-xl font-bold text-red-600">{blockedSites}</span>
           </div>
           <p className="text-sm text-gray-600">Sites currently blocked by Parent or AI</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+        <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Active Filters</h3>
-            <span className="text-2xl font-bold text-blue-600">{activeFilters}</span>
+            <h3 className="text-base font-semibold text-gray-900">Active Filters</h3>
+            <span className="text-xl font-bold text-blue-600">{activeFilters}</span>
           </div>
           <p className="text-sm text-gray-600">Content filters currently active</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Block by Category</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Block by Category</h3>
         <div className="space-y-3">
           {categories.length === 0 && (
             <p className="text-sm text-gray-500">No categories available.</p>
           )}
           {categories.map(category => (
-            <div key={category.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
+            <div key={category.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 bg-gray-50 rounded-xl">
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  className={`w-9 h-9 rounded-full flex items-center justify-center ${
                     category.status === 'BLOCKED' ? 'bg-red-100' : 'bg-gray-200'
                   }`}
                 >
-                  <Ban className={`w-5 h-5 ${category.status === 'BLOCKED' ? 'text-red-600' : 'text-gray-400'}`} />
+                  <Ban className={`w-4 h-4 ${category.status === 'BLOCKED' ? 'text-red-600' : 'text-gray-400'}`} />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{category.name}</p>
@@ -340,44 +340,46 @@ export default function BlockingContent({
               )}
               <button
                 onClick={() => toggleCategory(category.id)}
-                className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  category.status === 'BLOCKED' ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                className={`w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  category.status === 'BLOCKED'
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
                 }`}
               >
-                {category.status === 'BLOCKED' ? 'Enabled' : 'Disabled'}
+                {category.status === 'BLOCKED' ? 'Blocked' : 'Unblocked'}
               </button>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="bg-blue-50 rounded-2xl p-4 md:p-6 border border-blue-100">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3">Add Custom Website Block</h3>
+      <div className="bg-blue-50 rounded-2xl p-3.5 md:p-5 border border-blue-100">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">Add Custom Website Block</h3>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
             placeholder="example.com"
             value={siteInput}
             onChange={event => setSiteInput(event.target.value)}
-            className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             onClick={addCustomBlock}
             disabled={updating || !selectedChildId}
-            className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-5 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
             Block Site
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">Blocked Websites List</h3>
+          <h3 className="text-sm md:text-base font-semibold text-gray-900">Blocked Websites List</h3>
           <button
             onClick={removeSelectedSites}
             disabled={selectedSites.length === 0 || updating}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
           >
             <Trash2 className="h-4 w-4" />
             Remove Selected ({selectedSites.length})
@@ -432,7 +434,7 @@ export default function BlockingContent({
                     void removeCustomBlock(site.domain);
                   }}
                   disabled={updating}
-                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Remove

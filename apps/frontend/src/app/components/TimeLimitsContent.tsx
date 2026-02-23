@@ -2,8 +2,9 @@
 /* eslint-disable max-lines */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Clock, Plus } from 'lucide-react';
+import { X, Clock } from 'lucide-react';
 import { useAuthUser } from '@/lib/auth';
+import { detectSafekidExtensionInstalled, type ExtensionStatus } from '@/lib/extensionDetection';
 
 type LimitItem = { id: number; name: string; minutes: number };
 
@@ -11,6 +12,10 @@ type TimeLimitsDraft = {
   dailyLimit: number;
   weekdayLimit: number;
   weekendLimit: number;
+  schoolNightStartMinute: number;
+  schoolNightEndMinute: number;
+  weekendStartMinute: number;
+  weekendEndMinute: number;
   sessionLimit: number;
   breakEvery: number;
   breakDuration: number;
@@ -23,6 +28,12 @@ type TimeLimitsDraft = {
 
 const getDraftKey = (parentId: number, childId: number) => `timelimits:draft:${parentId}:${childId}`;
 const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_BEDTIME_SCHEDULE = {
+  schoolNightStartMinute: 21 * 60,
+  schoolNightEndMinute: 7 * 60,
+  weekendStartMinute: 22 * 60,
+  weekendEndMinute: 8 * 60,
+} as const;
 
 const readDraft = (parentId: number, childId: number): TimeLimitsDraft | null => {
   if (typeof window === 'undefined') return null;
@@ -68,9 +79,22 @@ export default function TimeLimitsContent({
   const { user } = useAuthUser();
   const skipNextAutoSaveRef = useRef(true);
   const isSavingRef = useRef(false);
+  const extensionAutoPromptedChildRef = useRef<number | null>(null);
   const [dailyLimit, setDailyLimit] = useState(240 * 60);
   const [weekdayLimit, setWeekdayLimit] = useState(180 * 60);
   const [weekendLimit, setWeekendLimit] = useState(300 * 60);
+  const [schoolNightStartMinute, setSchoolNightStartMinute] = useState(
+    DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute,
+  );
+  const [schoolNightEndMinute, setSchoolNightEndMinute] = useState(
+    DEFAULT_BEDTIME_SCHEDULE.schoolNightEndMinute,
+  );
+  const [weekendStartMinute, setWeekendStartMinute] = useState(
+    DEFAULT_BEDTIME_SCHEDULE.weekendStartMinute,
+  );
+  const [weekendEndMinute, setWeekendEndMinute] = useState(
+    DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute,
+  );
   const [sessionLimit, setSessionLimit] = useState(60 * 60);
   const [breakEvery, setBreakEvery] = useState(45 * 60);
   const [breakDuration, setBreakDuration] = useState(10 * 60);
@@ -86,17 +110,19 @@ export default function TimeLimitsContent({
   };
 
   const formatDuration = (seconds: number) => {
-    const totalSeconds = Math.max(0, Math.round(seconds));
-    const hrs = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
-    if (hrs > 0 && mins > 0 && secs > 0) return `${hrs}h ${mins}m ${secs}s`;
+    const totalMinutes = Math.max(0, Math.round(seconds / 60));
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
     if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
-    if (hrs > 0 && secs > 0) return `${hrs}h ${secs}s`;
     if (hrs > 0) return `${hrs}h`;
-    if (mins > 0 && secs > 0) return `${mins}m ${secs}s`;
-    if (mins > 0) return `${mins}m`;
-    return `${secs}s`;
+    return `${mins}m`;
+  };
+
+  const formatDurationFull = (seconds: number) => {
+    const totalMinutes = Math.max(0, Math.round(seconds / 60));
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${hrs}h ${mins}m`;
   };
 
   const [appLimits, setAppLimits] = useState([
@@ -120,16 +146,11 @@ export default function TimeLimitsContent({
     { id: 106, name: 'Communication', minutes: 60 },
     { id: 107, name: 'Productivity', minutes: 120 }
   ]);
-  const [editingItem, setEditingItem] = useState<{ id: number; type: 'app' | 'category' } | null>(
-    null
-  );
-  const [tempMinutes, setTempMinutes] = useState(60);
   const [blockedDuringFocus, setBlockedDuringFocus] = useState<string[]>([
     'Social Media',
     'Gaming',
     'Streaming Video'
   ]);
-  const [newBlocked, setNewBlocked] = useState('');
   const [children, setChildren] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -138,18 +159,85 @@ export default function TimeLimitsContent({
   const [success, setSuccess] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [dailyRefreshing, setDailyRefreshing] = useState(false);
+  const [showInstallExtension, setShowInstallExtension] = useState(false);
+  const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>('not-installed');
 
-  const dailyHours = Math.floor(dailyLimit / 3600);
-  const dailyMinutes = Math.floor((dailyLimit % 3600) / 60);
-  const dailySeconds = dailyLimit % 60;
+  const toHourMinute = (seconds: number) => {
+    const safeMinutes = Math.max(0, Math.round(seconds / 60));
+    return {
+      hours: Math.floor(safeMinutes / 60),
+      minutes: safeMinutes % 60,
+    };
+  };
 
-  const updateDailyLimitPart = (part: 'hours' | 'minutes' | 'seconds', value: number) => {
+  const toSecondsWithoutSecondsInput = (hours: number, minutes: number) => {
+    const safeHours = Number.isFinite(hours) ? Math.max(0, Math.floor(hours)) : 0;
+    const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.min(59, Math.floor(minutes))) : 0;
+    const totalSeconds = (safeHours * 60 + safeMinutes) * 60;
+    return Math.max(60, totalSeconds);
+  };
+
+  const dailyParts = toHourMinute(dailyLimit);
+  const weekdayParts = toHourMinute(weekdayLimit);
+  const weekendParts = toHourMinute(weekendLimit);
+
+  const updateDailyLimitPart = (part: 'hours' | 'minutes', value: number) => {
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-    const nextHours = part === 'hours' ? safeValue : dailyHours;
-    const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : dailyMinutes;
-    const nextSeconds = part === 'seconds' ? Math.min(59, safeValue) : dailySeconds;
-    const total = nextHours * 3600 + nextMinutes * 60 + nextSeconds;
-    setDailyLimit(total >= 1 ? total : 1);
+    const nextHours = part === 'hours' ? safeValue : dailyParts.hours;
+    const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : dailyParts.minutes;
+    setDailyLimit(toSecondsWithoutSecondsInput(nextHours, nextMinutes));
+  };
+
+  const updateWeekdayLimitPart = (part: 'hours' | 'minutes', value: number) => {
+    const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    const nextHours = part === 'hours' ? safeValue : weekdayParts.hours;
+    const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : weekdayParts.minutes;
+    setWeekdayLimit(toSecondsWithoutSecondsInput(nextHours, nextMinutes));
+  };
+
+  const updateWeekendLimitPart = (part: 'hours' | 'minutes', value: number) => {
+    const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    const nextHours = part === 'hours' ? safeValue : weekendParts.hours;
+    const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : weekendParts.minutes;
+    setWeekendLimit(toSecondsWithoutSecondsInput(nextHours, nextMinutes));
+  };
+
+  const updateCategoryLimitPart = (id: number, part: 'hours' | 'minutes', value: number) => {
+    setCategoryLimits((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+        const currentHours = Math.floor(item.minutes / 60);
+        const currentMinutes = item.minutes % 60;
+        const nextHours = part === 'hours' ? safeValue : currentHours;
+        const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : currentMinutes;
+        return { ...item, minutes: Math.max(1, nextHours * 60 + nextMinutes) };
+      }),
+    );
+  };
+
+  const toCategoryParts = (minutes: number) => {
+    const safeValue = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
+    return {
+      hours: Math.floor(safeValue / 60),
+      minutes: safeValue % 60,
+    };
+  };
+
+  const formatMinuteOfDay = (minutes: number) => {
+    const safe = Math.max(0, Math.min(1439, Math.round(minutes)));
+    const hour = Math.floor(safe / 60);
+    const minute = safe % 60;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  };
+
+  const parseMinuteOfDay = (value: string, fallback: number) => {
+    const [rawHour = "", rawMinute = ""] = value.split(":");
+    const hour = Number.parseInt(rawHour, 10);
+    const minute = Number.parseInt(rawMinute, 10);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return fallback;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallback;
+    return hour * 60 + minute;
   };
 
   const defaultAppLimits = useMemo(
@@ -195,6 +283,26 @@ export default function TimeLimitsContent({
     setDailyLimit(Number(draft.dailyLimit) || 1);
     setWeekdayLimit(Number(draft.weekdayLimit) || 180 * 60);
     setWeekendLimit(Number(draft.weekendLimit) || 300 * 60);
+    setSchoolNightStartMinute(
+      Number.isFinite(Number(draft.schoolNightStartMinute))
+        ? Math.max(0, Math.min(1439, Math.round(Number(draft.schoolNightStartMinute))))
+        : DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute,
+    );
+    setSchoolNightEndMinute(
+      Number.isFinite(Number(draft.schoolNightEndMinute))
+        ? Math.max(0, Math.min(1439, Math.round(Number(draft.schoolNightEndMinute))))
+        : DEFAULT_BEDTIME_SCHEDULE.schoolNightEndMinute,
+    );
+    setWeekendStartMinute(
+      Number.isFinite(Number(draft.weekendStartMinute))
+        ? Math.max(0, Math.min(1439, Math.round(Number(draft.weekendStartMinute))))
+        : DEFAULT_BEDTIME_SCHEDULE.weekendStartMinute,
+    );
+    setWeekendEndMinute(
+      Number.isFinite(Number(draft.weekendEndMinute))
+        ? Math.max(0, Math.min(1439, Math.round(Number(draft.weekendEndMinute))))
+        : DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute,
+    );
     setSessionLimit(Number(draft.sessionLimit) || 60 * 60);
     setBreakEvery(Number(draft.breakEvery) || 45 * 60);
     setBreakDuration(Number(draft.breakDuration) || 10 * 60);
@@ -290,6 +398,12 @@ export default function TimeLimitsContent({
             focusMode: boolean;
             downtimeEnabled: boolean;
           } | null;
+          bedtimeSchedule?: {
+            schoolNightStartMinute: number;
+            schoolNightEndMinute: number;
+            weekendStartMinute: number;
+            weekendEndMinute: number;
+          } | null;
           appLimits?: Array<{ id: number; name: string; minutes: number }>;
           categoryLimits?: Array<{ id: number; name: string; minutes: number }>;
           alwaysAllowed?: Array<{ id: number; name: string }>;
@@ -309,6 +423,19 @@ export default function TimeLimitsContent({
           setFocusMode(Boolean(limit.focusMode));
           setDowntimeEnabled(Boolean(limit.downtimeEnabled));
         }
+        const bedtime = payload.bedtimeSchedule;
+        setSchoolNightStartMinute(
+          bedtime?.schoolNightStartMinute ?? DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute,
+        );
+        setSchoolNightEndMinute(
+          bedtime?.schoolNightEndMinute ?? DEFAULT_BEDTIME_SCHEDULE.schoolNightEndMinute,
+        );
+        setWeekendStartMinute(
+          bedtime?.weekendStartMinute ?? DEFAULT_BEDTIME_SCHEDULE.weekendStartMinute,
+        );
+        setWeekendEndMinute(
+          bedtime?.weekendEndMinute ?? DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute,
+        );
 
         setAppLimits(
           payload.appLimits && payload.appLimits.length > 0
@@ -342,6 +469,10 @@ export default function TimeLimitsContent({
           setDailyLimit(240 * 60);
           setWeekdayLimit(180 * 60);
           setWeekendLimit(300 * 60);
+          setSchoolNightStartMinute(DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute);
+          setSchoolNightEndMinute(DEFAULT_BEDTIME_SCHEDULE.schoolNightEndMinute);
+          setWeekendStartMinute(DEFAULT_BEDTIME_SCHEDULE.weekendStartMinute);
+          setWeekendEndMinute(DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute);
           setSessionLimit(60 * 60);
           setBreakEvery(45 * 60);
           setBreakDuration(10 * 60);
@@ -390,6 +521,12 @@ export default function TimeLimitsContent({
             focusMode,
             downtimeEnabled
           },
+          bedtimeSchedule: {
+            schoolNightStartMinute,
+            schoolNightEndMinute,
+            weekendStartMinute,
+            weekendEndMinute,
+          },
           appLimits: appLimits.map((item) => ({ name: item.name, minutes: item.minutes })),
           categoryLimits: categoryLimits.map((item) => ({ name: item.name, minutes: item.minutes })),
           blockedDuringFocus
@@ -411,6 +548,10 @@ export default function TimeLimitsContent({
         dailyLimit,
         weekdayLimit,
         weekendLimit,
+        schoolNightStartMinute,
+        schoolNightEndMinute,
+        weekendStartMinute,
+        weekendEndMinute,
         sessionLimit,
         breakEvery,
         breakDuration,
@@ -437,9 +578,13 @@ export default function TimeLimitsContent({
     dailyLimit,
     downtimeEnabled,
     focusMode,
+    schoolNightEndMinute,
+    schoolNightStartMinute,
     selectedChildId,
     sessionLimit,
     user?.id,
+    weekendEndMinute,
+    weekendStartMinute,
     weekdayLimit,
     weekendLimit,
   ]);
@@ -488,12 +633,39 @@ export default function TimeLimitsContent({
     }
   };
 
+  const checkExtensionInstalled = useCallback(async (options?: { openIfMissing?: boolean }) => {
+    setExtensionStatus('checking');
+    const installed = await detectSafekidExtensionInstalled();
+    const nextStatus: ExtensionStatus = installed ? 'installed' : 'not-installed';
+    setExtensionStatus(nextStatus);
+    if (!installed && options?.openIfMissing) {
+      setShowInstallExtension(true);
+    }
+    return installed;
+  }, []);
+
+  const openInstallExtensionDebug = () => {
+    setShowInstallExtension(true);
+    void checkExtensionInstalled();
+  };
+
+  useEffect(() => {
+    if (!selectedChildId || !hydrated || loading) return;
+    if (extensionAutoPromptedChildRef.current === selectedChildId) return;
+    extensionAutoPromptedChildRef.current = selectedChildId;
+    void checkExtensionInstalled({ openIfMissing: true });
+  }, [checkExtensionInstalled, hydrated, loading, selectedChildId]);
+
   useEffect(() => {
     if (!user?.id || !selectedChildId || !hydrated) return;
     const draft: TimeLimitsDraft = {
       dailyLimit,
       weekdayLimit,
       weekendLimit,
+      schoolNightStartMinute,
+      schoolNightEndMinute,
+      weekendStartMinute,
+      weekendEndMinute,
       sessionLimit,
       breakEvery,
       breakDuration,
@@ -514,9 +686,13 @@ export default function TimeLimitsContent({
     downtimeEnabled,
     focusMode,
     hydrated,
+    schoolNightEndMinute,
+    schoolNightStartMinute,
     selectedChildId,
     sessionLimit,
     user?.id,
+    weekendEndMinute,
+    weekendStartMinute,
     weekdayLimit,
     weekendLimit,
   ]);
@@ -535,10 +711,10 @@ export default function TimeLimitsContent({
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-5">
       <div>
-        <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-1">Screen Time Limits</h1>
-        <p className="text-sm md:text-base text-gray-500">Set healthy usage limits for your children</p>
+        <h1 className="text-xl md:text-3xl font-semibold text-gray-900 mb-1">Screen Time Limits</h1>
+        <p className="text-xs md:text-sm text-gray-500">Set healthy usage limits for your children</p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -562,25 +738,33 @@ export default function TimeLimitsContent({
         </select>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">Daily Time Limit</h3>
-          <button
-            onClick={() => {
-              void handleDailyRefresh();
-            }}
-            disabled={dailyRefreshing || loading || !selectedChildId}
-            className="w-full sm:w-auto rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {dailyRefreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <h3 className="text-sm md:text-base font-semibold text-gray-900">Daily Time Limit</h3>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              onClick={() => {
+                void handleDailyRefresh();
+              }}
+              disabled={dailyRefreshing || loading || !selectedChildId}
+              className="w-full sm:w-auto rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+            >
+              {dailyRefreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <button
+              onClick={openInstallExtensionDebug}
+              className="w-full sm:w-auto rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 cursor-pointer"
+            >
+              Show Install Extension
+            </button>
+          </div>
         </div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-2xl md:text-3xl font-bold text-gray-900">{formatDuration(dailyLimit)}</p>
+            <p className="text-xl md:text-2xl font-bold text-gray-900">{formatDurationFull(dailyLimit)}</p>
             <p className="text-sm text-gray-600">Maximum daily screen time</p>
           </div>
-          <Clock className="w-10 h-10 md:w-12 md:h-12 text-blue-500" />
+          <Clock className="w-9 h-9 md:w-10 md:h-10 text-blue-500" />
         </div>
         <div className="flex items-end gap-3">
           <label className="flex-1">
@@ -591,7 +775,7 @@ export default function TimeLimitsContent({
               type="number"
               min={0}
               step={1}
-              value={dailyHours}
+              value={dailyParts.hours}
               onChange={(event) => updateDailyLimitPart('hours', Number(event.target.value))}
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
@@ -605,273 +789,211 @@ export default function TimeLimitsContent({
               min={0}
               max={59}
               step={1}
-              value={dailyMinutes}
+              value={dailyParts.minutes}
               onChange={(event) => updateDailyLimitPart('minutes', Number(event.target.value))}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </label>
-          <label className="flex-1">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-              Second
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={59}
-              step={1}
-              value={dailySeconds}
-              onChange={(event) => updateDailyLimitPart('seconds', Number(event.target.value))}
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
           </label>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Weekday vs Weekend</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Weekday vs Weekend</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-sm font-semibold text-gray-900 mb-1">Weekdays</p>
             <p className="text-xs text-gray-500 mb-3">Mon - Fri</p>
-            <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-gray-900">{formatDuration(weekdayLimit)}</span>
-              <input
-                type="range"
-                min={30 * 60}
-                max={10 * 60 * 60}
-                step={1}
-                value={weekdayLimit}
-                onChange={(event) => setWeekdayLimit(Number(event.target.value))}
-                className="time-slider w-40 cursor-pointer"
-                style={{
-                  ['--fill' as string]: `${((weekdayLimit - 30 * 60) / (10 * 60 * 60 - 30 * 60)) * 100}%`,
-                }}
-              />
+            <p className="mb-3 text-lg font-semibold text-gray-900">{formatDuration(weekdayLimit)}</p>
+            <div className="flex items-end gap-3">
+              <label className="flex-1">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Hour
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={weekdayParts.hours}
+                  onChange={(event) => updateWeekdayLimitPart('hours', Number(event.target.value))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+              <label className="flex-1">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Minute
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  step={1}
+                  value={weekdayParts.minutes}
+                  onChange={(event) => updateWeekdayLimitPart('minutes', Number(event.target.value))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
             </div>
           </div>
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-sm font-semibold text-gray-900 mb-1">Weekend</p>
             <p className="text-xs text-gray-500 mb-3">Sat - Sun</p>
-            <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-gray-900">{formatDuration(weekendLimit)}</span>
-              <input
-                type="range"
-                min={30 * 60}
-                max={12 * 60 * 60}
-                step={1}
-                value={weekendLimit}
-                onChange={(event) => setWeekendLimit(Number(event.target.value))}
-                className="time-slider w-40 cursor-pointer"
-                style={{
-                  ['--fill' as string]: `${((weekendLimit - 30 * 60) / (12 * 60 * 60 - 30 * 60)) * 100}%`,
-                }}
-              />
+            <p className="mb-3 text-lg font-semibold text-gray-900">{formatDuration(weekendLimit)}</p>
+            <div className="flex items-end gap-3">
+              <label className="flex-1">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Hour
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={weekendParts.hours}
+                  onChange={(event) => updateWeekendLimitPart('hours', Number(event.target.value))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+              <label className="flex-1">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Minute
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  step={1}
+                  value={weekendParts.minutes}
+                  onChange={(event) => updateWeekendLimitPart('minutes', Number(event.target.value))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Bedtime Schedule</h3>
-        <div className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">School Nights</p>
-              <p className="text-xs text-gray-500">Mon - Thu</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-gray-900">9:00 PM - 7:00 AM</p>
-              <p className={`text-xs ${downtimeEnabled ? 'text-green-600' : 'text-gray-400'}`}>
-                {downtimeEnabled ? 'Active' : 'Disabled'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Weekends</p>
-              <p className="text-xs text-gray-500">Fri - Sun</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-gray-900">10:00 PM - 8:00 AM</p>
-              <p className={`text-xs ${downtimeEnabled ? 'text-green-600' : 'text-gray-400'}`}>
-                {downtimeEnabled ? 'Active' : 'Disabled'}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Downtime Mode</p>
-            <p className="text-xs text-gray-500">Lock all apps during bedtime</p>
-          </div>
-          <button
-            onClick={() => setDowntimeEnabled(prev => !prev)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg ${
-              downtimeEnabled ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'
-            }`}
-          >
-            {downtimeEnabled ? 'Enabled' : 'Disabled'}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">App Time Limits</h3>
-        <div className="space-y-3">
-          {appLimits.map((app) => (
-            <div key={app.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
-              <p className="text-sm font-semibold text-gray-900">{app.name}</p>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-gray-900">{formatMinutes(app.minutes)}</span>
-                <button
-                  onClick={() => {
-                    setEditingItem({ id: app.id, type: 'app' });
-                    setTempMinutes(app.minutes);
-                  }}
-                  className="text-sm text-blue-500 hover:text-blue-600 font-medium"
-                >
-                  Edit
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Category Time Limits</h3>
-        <div className="space-y-3">
-          {categoryLimits.map((category) => (
-            <div key={category.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
-              <p className="text-sm font-semibold text-gray-900">{category.name}</p>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-gray-900">{formatMinutes(category.minutes)}</span>
-                <button
-                  onClick={() => {
-                    setEditingItem({ id: category.id, type: 'category' });
-                    setTempMinutes(category.minutes);
-                  }}
-                  className="text-sm text-blue-500 hover:text-blue-600 font-medium"
-                >
-                  Edit
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Session Limits</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Bedtime Schedule</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm font-semibold text-gray-900 mb-1">Max Session Length</p>
-            <p className="text-xs text-gray-500 mb-3">Limit continuous usage</p>
-            <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-gray-900">{formatDuration(sessionLimit)}</span>
-              <input
-                type="range"
-                min={15 * 60}
-                max={3 * 60 * 60}
-                step={1}
-                value={sessionLimit}
-                onChange={(event) => setSessionLimit(Number(event.target.value))}
-                className="time-slider w-40 cursor-pointer"
-                style={{
-                  ['--fill' as string]: `${((sessionLimit - 15 * 60) / (3 * 60 * 60 - 15 * 60)) * 100}%`,
-                }}
-              />
+            <p className="text-sm font-semibold text-gray-900">School Nights</p>
+            <p className="mb-3 text-xs text-gray-500">Mon - Thu</p>
+            <div className="grid grid-cols-2 gap-3">
+              <label>
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Start
+                </span>
+                <input
+                  type="time"
+                  value={formatMinuteOfDay(schoolNightStartMinute)}
+                  onChange={(event) =>
+                    setSchoolNightStartMinute(
+                      parseMinuteOfDay(event.target.value, schoolNightStartMinute),
+                    )
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  End
+                </span>
+                <input
+                  type="time"
+                  value={formatMinuteOfDay(schoolNightEndMinute)}
+                  onChange={(event) =>
+                    setSchoolNightEndMinute(
+                      parseMinuteOfDay(event.target.value, schoolNightEndMinute),
+                    )
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
             </div>
           </div>
+
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm font-semibold text-gray-900 mb-1">Break Reminders</p>
-            <p className="text-xs text-gray-500 mb-3">Encourage healthy breaks</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-700">Every {formatDuration(breakEvery)}</span>
-              <input
-                type="range"
-                min={15 * 60}
-                max={2 * 60 * 60}
-                step={1}
-                value={breakEvery}
-                onChange={(event) => setBreakEvery(Number(event.target.value))}
-                className="time-slider w-32 cursor-pointer"
-                style={{
-                  ['--fill' as string]: `${((breakEvery - 15 * 60) / (2 * 60 * 60 - 15 * 60)) * 100}%`,
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between mt-3">
-              <span className="text-sm text-gray-700">Break {formatDuration(breakDuration)}</span>
-              <input
-                type="range"
-                min={5 * 60}
-                max={30 * 60}
-                step={1}
-                value={breakDuration}
-                onChange={(event) => setBreakDuration(Number(event.target.value))}
-                className="time-slider w-32 cursor-pointer"
-                style={{
-                  ['--fill' as string]: `${((breakDuration - 5 * 60) / (30 * 60 - 5 * 60)) * 100}%`,
-                }}
-              />
+            <p className="text-sm font-semibold text-gray-900">Weekends</p>
+            <p className="mb-3 text-xs text-gray-500">Fri - Sun</p>
+            <div className="grid grid-cols-2 gap-3">
+              <label>
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Start
+                </span>
+                <input
+                  type="time"
+                  value={formatMinuteOfDay(weekendStartMinute)}
+                  onChange={(event) =>
+                    setWeekendStartMinute(parseMinuteOfDay(event.target.value, weekendStartMinute))
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                  End
+                </span>
+                <input
+                  type="time"
+                  value={formatMinuteOfDay(weekendEndMinute)}
+                  onChange={(event) =>
+                    setWeekendEndMinute(parseMinuteOfDay(event.target.value, weekendEndMinute))
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Focus Mode</h3>
-        <div className="flex items-center justify-between mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Block distractions</p>
-            <p className="text-xs text-gray-500">Temporarily pause entertainment apps</p>
-          </div>
-          <button
-            onClick={() => setFocusMode(prev => !prev)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg ${
-              focusMode ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'
-            }`}
-          >
-            {focusMode ? 'On' : 'Off'}
-          </button>
-        </div>
-        <div className="space-y-2">
-          {blockedDuringFocus.map((item) => (
-            <div key={item} className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-2">
-              <span className="text-sm font-medium text-gray-900">{item}</span>
-              <button
-                onClick={() => setBlockedDuringFocus(prev => prev.filter(entry => entry !== item))}
-                className="text-xs text-red-500 hover:text-red-600"
-              >
-                Remove
-              </button>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Category Time Limits</h3>
+        <div className="space-y-3">
+          {categoryLimits.map((category) => (
+            <div key={category.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3.5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-gray-900">{category.name}</p>
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                  {formatMinutes(category.minutes)}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label>
+                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Hour
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={toCategoryParts(category.minutes).hours}
+                    onChange={(event) =>
+                      updateCategoryLimitPart(category.id, 'hours', Number(event.target.value))
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Minute
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    step={1}
+                    value={toCategoryParts(category.minutes).minutes}
+                    onChange={(event) =>
+                      updateCategoryLimitPart(category.id, 'minutes', Number(event.target.value))
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+              </div>
             </div>
           ))}
         </div>
-        <div className="mt-3 flex gap-2">
-          <input
-            value={newBlocked}
-            onChange={(event) => setNewBlocked(event.target.value)}
-            placeholder="Add blocked app"
-            className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-          />
-          <button
-            onClick={() => {
-              const trimmed = newBlocked.trim();
-              if (!trimmed) return;
-              setBlockedDuringFocus(prev => [trimmed, ...prev]);
-              setNewBlocked('');
-            }}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm text-white"
-          >
-            <Plus className="h-4 w-4" />
-            Add
-          </button>
-        </div>
       </div>
-
 
       <div className="flex justify-end">
         <button
@@ -883,135 +1005,71 @@ export default function TimeLimitsContent({
         </button>
       </div>
     </div>
-    {editingItem !== null && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-        <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-gray-200">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+    {showInstallExtension && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+        <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div>
-              <h4 className="text-lg font-semibold text-gray-900">
-                Edit {editingItem.type === 'app' ? 'App' : 'Category'} Limit
-              </h4>
-              <p className="text-sm text-gray-500">Set daily limit in hours and minutes</p>
+              <h4 className="text-lg font-semibold text-slate-900">Install Browser Extension</h4>
+              <p className="text-sm text-slate-600">
+                Extension is required for live tracking and enforcement.
+              </p>
             </div>
             <button
-              onClick={() => setEditingItem(null)}
-              className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
-              aria-label="Close"
+              type="button"
+              onClick={() => setShowInstallExtension(false)}
+              className="h-9 w-9 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
+              aria-label="Close extension setup"
             >
-              <X className="w-4 h-4 text-gray-600" />
+              <X className="mx-auto h-4 w-4" />
             </button>
           </div>
-
-          <div className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600">Selected limit</p>
-              <p className="text-lg font-semibold text-gray-900">{formatMinutes(tempMinutes)}</p>
+          <div className="space-y-4 px-5 py-4">
+            <div
+              className={`rounded-lg border px-3 py-2 text-sm ${
+                extensionStatus === 'installed'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : extensionStatus === 'not-installed'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-slate-200 bg-slate-50 text-slate-600'
+              }`}
+            >
+              {extensionStatus === 'installed' && 'Extension detected in this browser.'}
+              {extensionStatus === 'not-installed' &&
+                'Extension not detected. Install it, then click Re-check.'}
+              {extensionStatus === 'checking' && 'Checking extension status...'}
             </div>
 
-            <input
-              type="range"
-              min={15}
-              max={240}
-              step={15}
-              value={tempMinutes}
-              onChange={(event) => setTempMinutes(Number(event.target.value))}
-              className="time-slider w-full cursor-pointer"
-              style={{
-                ['--fill' as string]: `${((tempMinutes - 15) / (240 - 15)) * 100}%`,
+            <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
+              <li>Open <code>chrome://extensions</code></li>
+              <li>Enable <strong>Developer mode</strong></li>
+              <li>
+                Click <strong>Load unpacked</strong> and select{" "}
+                <code>/Users/25LP6386/Desktop/tsevermongolchuud/apps/chrome-extension</code>
+              </li>
+            </ol>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <button
+              type="button"
+              onClick={() => setShowInstallExtension(false)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void checkExtensionInstalled();
               }}
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>15m</span>
-              <span>4h</span>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setEditingItem(null)}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (editingItem.type === 'app') {
-                    setAppLimits(prev =>
-                      prev.map(app =>
-                        app.id === editingItem.id ? { ...app, minutes: tempMinutes } : app
-                      )
-                    );
-                  } else {
-                    setCategoryLimits(prev =>
-                      prev.map(category =>
-                        category.id === editingItem.id ? { ...category, minutes: tempMinutes } : category
-                      )
-                    );
-                  }
-                  setEditingItem(null);
-                }}
-                className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600"
-              >
-                Save
-              </button>
-            </div>
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              Re-check Extension
+            </button>
           </div>
         </div>
       </div>
     )}
-    <style jsx>{`
-      .time-slider {
-        -webkit-appearance: none;
-        appearance: none;
-        height: 10px;
-        border-radius: 999px;
-        background: linear-gradient(
-          90deg,
-          #6366f1 0%,
-          #7c3aed var(--fill),
-          #e5e7eb var(--fill),
-          #e5e7eb 100%
-        );
-        transition: background 0.25s ease;
-      }
-
-      .time-slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 22px;
-        height: 22px;
-        border-radius: 999px;
-        background: #ffffff;
-        border: 2px solid #6366f1;
-        box-shadow: 0 6px 14px rgba(99, 102, 241, 0.25);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-      }
-
-      .time-slider:active::-webkit-slider-thumb {
-        transform: scale(1.05);
-        box-shadow: 0 8px 18px rgba(99, 102, 241, 0.35);
-      }
-
-      .time-slider::-moz-range-thumb {
-        width: 22px;
-        height: 22px;
-        border-radius: 999px;
-        background: #ffffff;
-        border: 2px solid #6366f1;
-        box-shadow: 0 6px 14px rgba(99, 102, 241, 0.25);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-      }
-
-      .time-slider:active::-moz-range-thumb {
-        transform: scale(1.05);
-        box-shadow: 0 8px 18px rgba(99, 102, 241, 0.35);
-      }
-
-      .time-slider::-moz-range-track {
-        height: 10px;
-        border-radius: 999px;
-        background: transparent;
-      }
-    `}</style>
     </>
   );
 }

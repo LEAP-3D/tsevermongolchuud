@@ -22,14 +22,14 @@ export default function DashboardHeader({
   refreshing = false,
 }: DashboardHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-1">Dashboard</h1>
-        <p className="text-sm md:text-base text-gray-500">
+        <h1 className="text-xl md:text-3xl font-semibold text-gray-900 mb-1">Dashboard</h1>
+        <p className="text-xs md:text-sm text-gray-500">
           {childName ? `Activity for ${childName}` : "Select a child to view activity"}
         </p>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end w-full md:w-auto">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end w-full md:w-auto">
         <select
           value={selectedChildId ?? ""}
           onChange={(event) => {
@@ -55,7 +55,7 @@ export default function DashboardHeader({
             <button
               key={filter.key}
               onClick={() => onChangeTimeFilter(filter.key)}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all ${
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
                 timeFilter === filter.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -66,7 +66,7 @@ export default function DashboardHeader({
         <button
           onClick={onRefresh}
           disabled={refreshing}
-          className="w-full sm:w-auto rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full sm:w-auto rounded-lg border border-blue-200 bg-white px-3.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {refreshing ? "Refreshing..." : "Refresh"}
         </button>

@@ -543,8 +543,8 @@ export default function HomeDashboard() {
         <div className="flex h-full flex-col md:flex-row">
           <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} />
 
-          <div className="flex-1 overflow-y-auto p-4 md:p-8">
-            <div className="max-w-6xl mx-auto">{renderContent()}</div>
+          <div className="flex-1 overflow-y-auto p-3 md:p-6 lg:p-7">
+            <div className="mx-auto max-w-5xl">{renderContent()}</div>
           </div>
         </div>
         <FloatingAIAssistant

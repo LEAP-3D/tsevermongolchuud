@@ -51,7 +51,7 @@ export default function DashboardContent({
   const selectedChild = childrenData.find(child => child.id === selectedChildId) ?? null;
   const childOptions = childrenData.map(child => ({ id: child.id, name: child.name }));
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <DashboardHeader
         childName={selectedChild?.name}
         childrenOptions={childOptions}

@@ -2,7 +2,11 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../lib/prisma");
 const { classifyWebsite } = require("../lib/ai");
-const { checkTimeLimit, checkGlobalDailyLimit } = require("../lib/timeUtils");
+const {
+  checkTimeLimit,
+  checkGlobalDailyLimit,
+  checkBedtimeSchedule,
+} = require("../lib/timeUtils");
 
 // POST: /api/check-url
 router.post("/", async (req, res, next) => {
@@ -27,6 +31,31 @@ router.post("/", async (req, res, next) => {
     } catch {
       // Allow invalid/non-http schemes such as chrome://
       return res.json({ action: "ALLOWED", reason: "NON_HTTP_URL", source: "SYSTEM" });
+    }
+
+    const bedtimeStatus = await checkBedtimeSchedule(Number(childId));
+    if (bedtimeStatus.isBlocked) {
+      if (!isDryRun) {
+        prisma.history
+          .create({
+            data: {
+              childId: Number(childId),
+              fullUrl: url,
+              domain,
+              categoryName: "Bedtime",
+              actionTaken: "BLOCKED",
+              duration: 0,
+            },
+          })
+          .catch((err) => console.error("History Save Error:", err));
+      }
+
+      return res.json({
+        action: "BLOCK",
+        reason: "BEDTIME_ACTIVE",
+        source: "SYSTEM",
+        domain,
+      });
     }
 
     // 2. Find or classify domain

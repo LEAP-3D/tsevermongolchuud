@@ -18,6 +18,12 @@ const DEFAULT_TIME_LIMIT_SECONDS = {
   breakEvery: 45 * 60,
   breakDuration: 10 * 60,
 } as const;
+const DEFAULT_BEDTIME_SCHEDULE = {
+  schoolNightStartMinute: 21 * 60,
+  schoolNightEndMinute: 7 * 60,
+  weekendStartMinute: 22 * 60,
+  weekendEndMinute: 8 * 60,
+} as const;
 
 type TimeLimitFields = {
   dailyLimit: number;
@@ -26,6 +32,12 @@ type TimeLimitFields = {
   sessionLimit: number;
   breakEvery: number;
   breakDuration: number;
+};
+type BedtimeSchedule = {
+  schoolNightStartMinute: number;
+  schoolNightEndMinute: number;
+  weekendStartMinute: number;
+  weekendEndMinute: number;
 };
 const TIME_LIMIT_DDL_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS "ChildTimeLimit" (
@@ -72,6 +84,16 @@ const TIME_LIMIT_DDL_STATEMENTS = [
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS "ChildBedtimeSchedule" (
+    "id" SERIAL PRIMARY KEY,
+    "childId" INTEGER NOT NULL,
+    "schoolNightStartMinute" INTEGER NOT NULL DEFAULT 1260,
+    "schoolNightEndMinute" INTEGER NOT NULL DEFAULT 420,
+    "weekendStartMinute" INTEGER NOT NULL DEFAULT 1320,
+    "weekendEndMinute" INTEGER NOT NULL DEFAULT 480,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "ChildTimeLimit_childId_key" ON "ChildTimeLimit"("childId")`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "ChildAppLimit_childId_name_key" ON "ChildAppLimit"("childId", "name")`,
   `CREATE INDEX IF NOT EXISTS "ChildAppLimit_childId_idx" ON "ChildAppLimit"("childId")`,
@@ -81,6 +103,7 @@ const TIME_LIMIT_DDL_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "ChildAlwaysAllowed_childId_idx" ON "ChildAlwaysAllowed"("childId")`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "ChildFocusBlocked_childId_name_key" ON "ChildFocusBlocked"("childId", "name")`,
   `CREATE INDEX IF NOT EXISTS "ChildFocusBlocked_childId_idx" ON "ChildFocusBlocked"("childId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ChildBedtimeSchedule_childId_key" ON "ChildBedtimeSchedule"("childId")`,
   `DO $$
   BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChildTimeLimit_childId_fkey') THEN
@@ -116,6 +139,13 @@ const TIME_LIMIT_DDL_STATEMENTS = [
       FOREIGN KEY ("childId") REFERENCES "Child"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
   END $$`,
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ChildBedtimeSchedule_childId_fkey') THEN
+      ALTER TABLE "ChildBedtimeSchedule" ADD CONSTRAINT "ChildBedtimeSchedule_childId_fkey"
+      FOREIGN KEY ("childId") REFERENCES "Child"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
 ];
 
 const ensureTimeLimitTables = async () => {
@@ -134,6 +164,12 @@ const toSafeSeconds = (value: unknown, fallbackSeconds: number) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallbackSeconds;
   return Math.max(1, Math.round(numeric));
+};
+const toMinuteOfDay = (value: unknown, fallbackMinute: number) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallbackMinute;
+  const rounded = Math.round(numeric);
+  return Math.max(0, Math.min(1439, rounded));
 };
 
 const requireChild = async (childId: number, parentId: number) => {
@@ -174,6 +210,77 @@ const normalizeTimeLimitRow = <TRow extends TimeLimitFields>(row: TRow): TRow =>
   breakEvery: toSafeSeconds(row.breakEvery, DEFAULT_TIME_LIMIT_SECONDS.breakEvery),
   breakDuration: toSafeSeconds(row.breakDuration, DEFAULT_TIME_LIMIT_SECONDS.breakDuration),
 });
+const normalizeBedtimeSchedule = (
+  row: Partial<BedtimeSchedule> | null | undefined,
+): BedtimeSchedule => ({
+  schoolNightStartMinute: toMinuteOfDay(
+    row?.schoolNightStartMinute,
+    DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute,
+  ),
+  schoolNightEndMinute: toMinuteOfDay(
+    row?.schoolNightEndMinute,
+    DEFAULT_BEDTIME_SCHEDULE.schoolNightEndMinute,
+  ),
+  weekendStartMinute: toMinuteOfDay(
+    row?.weekendStartMinute,
+    DEFAULT_BEDTIME_SCHEDULE.weekendStartMinute,
+  ),
+  weekendEndMinute: toMinuteOfDay(
+    row?.weekendEndMinute,
+    DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute,
+  ),
+});
+const getBedtimeSchedule = async (childId: number): Promise<BedtimeSchedule> => {
+  const rows = await prisma.$queryRawUnsafe<
+    Array<{
+      schoolNightStartMinute: number;
+      schoolNightEndMinute: number;
+      weekendStartMinute: number;
+      weekendEndMinute: number;
+    }>
+  >(
+    `SELECT
+      "schoolNightStartMinute",
+      "schoolNightEndMinute",
+      "weekendStartMinute",
+      "weekendEndMinute"
+    FROM "ChildBedtimeSchedule"
+    WHERE "childId" = $1
+    LIMIT 1`,
+    childId,
+  );
+  return normalizeBedtimeSchedule(rows[0]);
+};
+const upsertBedtimeSchedule = (childId: number, bedtimeSchedule: unknown) => {
+  const schedule = normalizeBedtimeSchedule(
+    typeof bedtimeSchedule === "object" && bedtimeSchedule !== null
+      ? (bedtimeSchedule as Partial<BedtimeSchedule>)
+      : null,
+  );
+  return prisma.$executeRawUnsafe(
+    `INSERT INTO "ChildBedtimeSchedule" (
+      "childId",
+      "schoolNightStartMinute",
+      "schoolNightEndMinute",
+      "weekendStartMinute",
+      "weekendEndMinute",
+      "createdAt",
+      "updatedAt"
+    ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("childId")
+    DO UPDATE SET
+      "schoolNightStartMinute" = EXCLUDED."schoolNightStartMinute",
+      "schoolNightEndMinute" = EXCLUDED."schoolNightEndMinute",
+      "weekendStartMinute" = EXCLUDED."weekendStartMinute",
+      "weekendEndMinute" = EXCLUDED."weekendEndMinute",
+      "updatedAt" = CURRENT_TIMESTAMP`,
+    childId,
+    schedule.schoolNightStartMinute,
+    schedule.schoolNightEndMinute,
+    schedule.weekendStartMinute,
+    schedule.weekendEndMinute,
+  );
+};
 
 const getUBTodayDate = () => {
   const now = new Date();
@@ -282,9 +389,17 @@ export async function GET(req: Request) {
     }
 
     const normalizedTimeLimit = timeLimit ? normalizeTimeLimitRow(timeLimit) : null;
+    let bedtimeSchedule = normalizeBedtimeSchedule(null);
+    try {
+      bedtimeSchedule = await getBedtimeSchedule(childId);
+    } catch {
+      await ensureTimeLimitTables();
+      bedtimeSchedule = await getBedtimeSchedule(childId);
+    }
 
     return NextResponse.json({
       timeLimit: normalizedTimeLimit,
+      bedtimeSchedule,
       appLimits,
       categoryLimits,
       alwaysAllowed,
@@ -294,6 +409,7 @@ export async function GET(req: Request) {
     if (isPrismaTableMissingError(error)) {
       return NextResponse.json({
         timeLimit: null,
+        bedtimeSchedule: normalizeBedtimeSchedule(null),
         appLimits: [],
         categoryLimits: [],
         alwaysAllowed: [],
@@ -365,6 +481,7 @@ export async function PUT(req: Request) {
     }
 
     const timeLimit = payload?.timeLimit ?? {};
+    const bedtimeSchedule = payload?.bedtimeSchedule ?? {};
     const appLimits = Array.isArray(payload?.appLimits) ? payload.appLimits : [];
     const categoryLimits = Array.isArray(payload?.categoryLimits) ? payload.categoryLimits : [];
     const alwaysAllowed = Array.isArray(payload?.alwaysAllowed) ? payload.alwaysAllowed : [];
@@ -426,6 +543,7 @@ export async function PUT(req: Request) {
         prisma.childCategoryLimit.deleteMany({ where: { childId } }),
         prisma.childAlwaysAllowed.deleteMany({ where: { childId } }),
         prisma.childFocusBlocked.deleteMany({ where: { childId } }),
+        upsertBedtimeSchedule(childId, bedtimeSchedule),
         prisma.childAppLimit.createMany({
           data: appLimits
             .filter((item: { name?: string; minutes?: number }) => item?.name)

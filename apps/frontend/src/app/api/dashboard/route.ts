@@ -103,52 +103,34 @@ const buildDayLabels = (days: number, timeZone: string) => {
   return labels;
 };
 
-const getYearMonthParts = (value: Date, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(value);
-  return {
-    year: Number(parts.find((part) => part.type === "year")?.value ?? 0),
-    month: Number(parts.find((part) => part.type === "month")?.value ?? 1),
-  };
-};
-
-const toMonthKey = (value: Date, timeZone: string) => {
-  const { year, month } = getYearMonthParts(value, timeZone);
-  return `${year}-${String(month).padStart(2, "0")}`;
-};
-
-const buildMonthLabels = (startDate: Date, endDate: Date, timeZone: string) => {
-  const labels: Array<{ key: string; label: string }> = [];
-  const start = getYearMonthParts(startDate, timeZone);
-  const end = getYearMonthParts(endDate, timeZone);
-
-  let year = start.year;
-  let month = start.month;
-  while (year < end.year || (year === end.year && month <= end.month)) {
-    const key = `${year}-${String(month).padStart(2, "0")}`;
-    const midMonthDate = new Date(Date.UTC(year, month - 1, 15));
-    const label = new Intl.DateTimeFormat("en-US", {
-      timeZone,
+const buildDayLabelsBetween = (startDate: Date, endDate: Date, timeZone: string) => {
+  const labels: Array<{ key: string; label: string; date: Date }> = [];
+  const start = getDayStart(timeZone, startDate);
+  const end = getDayStart(timeZone, endDate);
+  const cursor = new Date(start);
+  while (cursor.getTime() <= end.getTime()) {
+    const key = toDateKey(cursor, timeZone);
+    const label = cursor.toLocaleDateString("en-US", {
       month: "short",
-      year: "numeric",
-    }).format(midMonthDate);
-    labels.push({ key, label });
-    month += 1;
-    if (month > 12) {
-      month = 1;
-      year += 1;
-    }
+      day: "numeric",
+      year: "2-digit",
+      timeZone,
+    });
+    labels.push({ key, label, date: new Date(cursor) });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
-
   return labels;
 };
 
 const secondsToMinutes = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds <= 0) return 0;
   return seconds / 60;
+};
+
+const secondsToTimelineMinutes = (seconds: number) => {
+  const safe = Math.max(0, Number(seconds ?? 0));
+  if (safe <= 0) return 0;
+  return Math.max(1, Math.round(secondsToMinutes(safe)));
 };
 
 const normalizeCategoryName = (value: string | null | undefined) => {
@@ -317,7 +299,7 @@ export async function GET(req: Request) {
 
     usageTimeline = hourLabels.map(item => ({
       day: item.label,
-      minutes: Math.round(secondsToMinutes(hourTotals.get(item.key) ?? 0)),
+      minutes: secondsToTimelineMinutes(hourTotals.get(item.key) ?? 0),
       sites: Array.from((bucketSites.get(item.key) ?? new Map()).values())
         .sort((a, b) => b.seconds - a.seconds)
         .slice(0, 8)
@@ -341,13 +323,9 @@ export async function GET(req: Request) {
       if (!oldest || candidate.getTime() < oldest.getTime()) return candidate;
       return oldest;
     }, null);
-    const monthLabels = buildMonthLabels(
-      firstVisitedAt ?? new Date(),
-      new Date(),
-      timeZone,
-    );
-    const monthTotals = new Map(monthLabels.map((item) => [item.key, 0]));
-    const monthSites = new Map<
+    const allTimeLabels = buildDayLabelsBetween(firstVisitedAt ?? new Date(), new Date(), timeZone);
+    const allTimeTotals = new Map(allTimeLabels.map((item) => [item.key, 0]));
+    const allTimeSites = new Map<
       string,
       Map<
         string,
@@ -366,16 +344,16 @@ export async function GET(req: Request) {
       if (!entry.visitedAt) continue;
       const visitedAt = new Date(entry.visitedAt);
       if (Number.isNaN(visitedAt.getTime())) continue;
-      const key = toMonthKey(visitedAt, timeZone);
-      if (!monthTotals.has(key)) continue;
-      monthTotals.set(key, (monthTotals.get(key) ?? 0) + (entry.duration ?? 0));
+      const key = toDateKey(visitedAt, timeZone);
+      if (!allTimeTotals.has(key)) continue;
+      allTimeTotals.set(key, (allTimeTotals.get(key) ?? 0) + (entry.duration ?? 0));
 
       const url = typeof entry.fullUrl === "string" && entry.fullUrl ? entry.fullUrl : "";
       if (!url) continue;
-      if (!monthSites.has(key)) {
-        monthSites.set(key, new Map());
+      if (!allTimeSites.has(key)) {
+        allTimeSites.set(key, new Map());
       }
-      const byUrl = monthSites.get(key);
+      const byUrl = allTimeSites.get(key);
       if (!byUrl) continue;
       const leftAtMs = visitedAt.getTime();
       const enteredAtMs = leftAtMs - Math.max(0, Number(entry.duration ?? 0)) * 1000;
@@ -390,10 +368,10 @@ export async function GET(req: Request) {
       });
     }
 
-    usageTimeline = monthLabels.map((item) => ({
+    usageTimeline = allTimeLabels.map((item) => ({
       day: item.label,
-      minutes: Math.round(secondsToMinutes(monthTotals.get(item.key) ?? 0)),
-      sites: Array.from((monthSites.get(item.key) ?? new Map()).values())
+      minutes: secondsToTimelineMinutes(allTimeTotals.get(item.key) ?? 0),
+      sites: Array.from((allTimeSites.get(item.key) ?? new Map()).values())
         .sort((a, b) => b.seconds - a.seconds)
         .slice(0, 8)
         .map((site) => ({
@@ -407,7 +385,7 @@ export async function GET(req: Request) {
         })),
     }));
 
-    rangeTotalSeconds = Array.from(monthTotals.values()).reduce((sum, value) => sum + value, 0);
+    rangeTotalSeconds = Array.from(allTimeTotals.values()).reduce((sum, value) => sum + value, 0);
   } else {
     const rangeDays = days ?? 7;
     const labels = buildDayLabels(rangeDays, timeZone);
@@ -461,7 +439,7 @@ export async function GET(req: Request) {
 
     usageTimeline = labels.map(item => ({
       day: item.label,
-      minutes: Math.round(secondsToMinutes(dayTotals.get(item.key) ?? 0)),
+      minutes: secondsToTimelineMinutes(dayTotals.get(item.key) ?? 0),
       sites: Array.from((daySites.get(item.key) ?? new Map()).values())
         .sort((a, b) => b.seconds - a.seconds)
         .slice(0, 8)

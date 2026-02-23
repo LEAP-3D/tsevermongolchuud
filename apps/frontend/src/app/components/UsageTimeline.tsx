@@ -29,6 +29,14 @@ export default function UsageTimeline({
   const [showDetails, setShowDetails] = useState(false);
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const timelineData = useMemo(
+    () =>
+      usageData.map((point) => ({
+        ...point,
+        minutes: Number.isFinite(Number(point.minutes)) ? Math.max(0, Number(point.minutes)) : 0,
+      })),
+    [usageData],
+  );
 
   const formatHHMM = (minutesValue: number) => {
     const totalMinutes = Math.max(0, Math.round(minutesValue));
@@ -126,14 +134,14 @@ export default function UsageTimeline({
           : "all-time";
 
   const summary = useMemo(() => {
-    const total = usageData.reduce((acc, point) => acc + point.minutes, 0);
-    const avg = usageData.length ? total / usageData.length : 0;
-    const peak = usageData.reduce(
+    const total = timelineData.reduce((acc, point) => acc + point.minutes, 0);
+    const avg = timelineData.length ? total / timelineData.length : 0;
+    const peak = timelineData.reduce(
       (max, point) => (point.minutes > max.minutes ? point : max),
-      usageData[0] ?? { day: "-", minutes: 0 },
+      timelineData[0] ?? { day: "-", minutes: 0 },
     );
 
-    const maxMinutes = Math.max(...usageData.map((point) => point.minutes), 0);
+    const maxMinutes = Math.max(...timelineData.map((point) => point.minutes), 0);
     let step = 10;
     if (maxMinutes > 60) step = 30;
     if (maxMinutes > 180) step = 60;
@@ -151,29 +159,46 @@ export default function UsageTimeline({
       peakMinutes: peak.minutes,
       yTicks: yTicks.length ? yTicks : [0, step],
     };
-  }, [usageData]);
+  }, [timelineData]);
 
   const activePoint = useMemo(() => {
-    if (usageData.length === 0) return null;
+    if (timelineData.length === 0) return null;
     if (selectedDay) {
-      return usageData.find((point) => point.day === selectedDay) ?? usageData[usageData.length - 1] ?? null;
+      return timelineData.find((point) => point.day === selectedDay) ?? timelineData[timelineData.length - 1] ?? null;
     }
     if (hoveredDay) {
-      return usageData.find((point) => point.day === hoveredDay) ?? usageData[usageData.length - 1] ?? null;
+      return timelineData.find((point) => point.day === hoveredDay) ?? timelineData[timelineData.length - 1] ?? null;
     }
-    return usageData[usageData.length - 1] ?? null;
-  }, [hoveredDay, selectedDay, usageData]);
+    return timelineData[timelineData.length - 1] ?? null;
+  }, [hoveredDay, selectedDay, timelineData]);
 
   const xAxisInterval = useMemo(() => {
     if (timeFilter !== "all") return "preserveStartEnd";
-    if (usageData.length <= 12) return 0;
-    return Math.ceil(usageData.length / 12) - 1;
-  }, [timeFilter, usageData.length]);
+    if (timelineData.length <= 12) return 0;
+    return Math.ceil(timelineData.length / 12) - 1;
+  }, [timeFilter, timelineData.length]);
+
+  const renderUsageTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: ReadonlyArray<{ value?: number | string }>;
+  }) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const value = Number(payload[0]?.value ?? 0);
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm">
+        <span className="font-semibold">Hours: </span>
+        {formatHHMM(value)}
+      </div>
+    );
+  };
 
   return (
-    <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900">Usage Timeline</h3>
+    <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900">Usage Timeline</h3>
         <button
           onClick={() => setShowDetails(true)}
           className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium"
@@ -181,15 +206,15 @@ export default function UsageTimeline({
           Details <ArrowUpRight className="w-4 h-4" />
         </button>
       </div>
-      {usageData.length === 0 ? (
-        <div className="h-56 md:h-64 flex items-center justify-center text-sm text-gray-500">
+      {timelineData.length === 0 ? (
+        <div className="h-52 md:h-60 flex items-center justify-center text-sm text-gray-500">
           Select a child to see usage data.
         </div>
       ) : (
-        <div className="h-56 md:h-64">
+        <div className="h-52 md:h-60">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={usageData}
+              data={timelineData}
               onMouseMove={(state) => {
                 const label = typeof state?.activeLabel === "string" ? state.activeLabel : null;
                 if (label) setHoveredDay(label);
@@ -228,18 +253,7 @@ export default function UsageTimeline({
                     '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 }}
               />
-              <Tooltip
-                formatter={(value: number | string | undefined) => `Hours: ${formatHHMM(Number(value ?? 0))}`}
-                contentStyle={{
-                  background: "#fff",
-                  border: "1px solid #e5e5e5",
-                  borderRadius: "12px",
-                  fontSize: "13px",
-                  fontFamily:
-                    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                }}
-              />
+              <Tooltip content={renderUsageTooltip} />
               <Line
                 type="monotone"
                 dataKey="minutes"
@@ -253,7 +267,7 @@ export default function UsageTimeline({
           </ResponsiveContainer>
         </div>
       )}
-      {usageData.length > 0 && (
+      {timelineData.length > 0 && (
         <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-xs font-semibold text-gray-600">
@@ -385,7 +399,7 @@ export default function UsageTimeline({
                   <div>Status</div>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {usageData.map((point) => (
+                  {timelineData.map((point) => (
                     <div
                       key={point.day}
                       className="grid grid-cols-3 gap-0 px-4 py-3 text-sm text-gray-700"

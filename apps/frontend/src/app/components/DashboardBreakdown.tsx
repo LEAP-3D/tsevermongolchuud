@@ -149,10 +149,10 @@ export default function DashboardBreakdown({
   }, [riskData]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">Categories</h3>
+    <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-sm md:text-base font-semibold text-gray-900">Categories</h3>
           <button
             onClick={() => setShowCategoryDetails(true)}
             className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium"
@@ -161,11 +161,11 @@ export default function DashboardBreakdown({
           </button>
         </div>
         {categoryData.length === 0 ? (
-          <div className="h-56 md:h-60 flex items-center justify-center text-sm text-gray-500">
+          <div className="h-52 md:h-56 flex items-center justify-center text-sm text-gray-500">
             Select a child to see category data.
           </div>
         ) : (
-          <div className="h-56 md:h-60">
+          <div className="h-52 md:h-56">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={categoryData} dataKey="value" cx="50%" cy="50%" outerRadius={75} innerRadius={45} strokeWidth={0}>
@@ -198,9 +198,9 @@ export default function DashboardBreakdown({
         )}
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">Risk Assessment</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-sm md:text-base font-semibold text-gray-900">Risk Assessment</h3>
           <button
             onClick={() => setShowRiskDetails(true)}
             className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium"
@@ -209,12 +209,12 @@ export default function DashboardBreakdown({
           </button>
         </div>
         {riskData.length === 0 ? (
-          <div className="h-56 md:h-60 flex items-center justify-center text-sm text-gray-500">
+          <div className="h-52 md:h-56 flex items-center justify-center text-sm text-gray-500">
             Select a child to see risk data.
           </div>
         ) : (
-          <div className="h-56 md:h-60 flex flex-col gap-4">
-            <div className="h-36 shrink-0">
+          <div className="h-52 md:h-56 flex flex-col gap-3">
+            <div className="h-32 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={riskBarData} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                   <XAxis

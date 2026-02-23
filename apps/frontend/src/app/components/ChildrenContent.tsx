@@ -26,7 +26,8 @@ const formatLimit = (seconds: number) => {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
-  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  const secs = safeSeconds % 60;
+  return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
 };
 
 export default function ChildrenContent({
@@ -120,6 +121,12 @@ export default function ChildrenContent({
     setSelectedChildId(childId);
   };
 
+  const jumpFromModal = (tab: JumpTab) => {
+    if (!selectedChild) return;
+    onJumpToSection(tab, selectedChild.id);
+    setSelectedChildId(null);
+  };
+
   const handleRenameChild = async () => {
     if (!selectedChild) return;
     const trimmedName = renameValue.trim();
@@ -162,26 +169,26 @@ export default function ChildrenContent({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-1">Children</h1>
-          <p className="text-sm md:text-base text-gray-500">Manage and monitor your children&apos;s accounts</p>
+          <h1 className="text-xl md:text-3xl font-semibold text-gray-900 mb-1">Children</h1>
+          <p className="text-xs md:text-sm text-gray-500">Manage and monitor your children&apos;s accounts</p>
         </div>
         <button
           onClick={onOpenAddChild}
-          className="w-full md:w-auto px-5 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 shadow-sm"
+          className="w-full md:w-auto px-5 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Add Child
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {childrenData.map((child) => (
-          <div key={child.id} className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80 hover:shadow-lg transition-all">
-            <div className="flex items-start gap-4 mb-5">
-              <div className="w-14 h-14 md:w-16 md:h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl md:text-2xl shadow-sm">
+          <div key={child.id} className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80 hover:shadow-lg transition-all">
+            <div className="mb-4 flex items-start gap-4">
+              <div className="h-12 w-12 md:h-14 md:w-14 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-sm">
                 {child.avatar}
               </div>
               <div className="flex-1">
@@ -195,7 +202,7 @@ export default function ChildrenContent({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="mb-4 grid grid-cols-2 gap-3">
               <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                 <p className="text-xs text-gray-600 mb-1">Today&apos;s Usage</p>
                 <p className="text-base md:text-lg font-semibold text-gray-900">{child.todayUsage}</p>
@@ -206,7 +213,7 @@ export default function ChildrenContent({
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 mb-4">
+            <div className="mb-4 bg-blue-50 rounded-xl p-3.5 border border-blue-100">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-medium text-blue-700 mb-1">Access PIN</p>
@@ -216,7 +223,7 @@ export default function ChildrenContent({
                   onClick={() => {
                     void navigator.clipboard.writeText(child.pin);
                   }}
-                  className="w-full sm:w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
+                  className="w-full sm:w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors cursor-pointer"
                 >
                   <Copy className="w-5 h-5 text-white" />
                 </button>
@@ -227,13 +234,13 @@ export default function ChildrenContent({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 onClick={() => onViewActivity(child.id)}
-                className="px-4 py-2.5 bg-gray-100 text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2.5 bg-gray-100 text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
               >
                 View Activity
               </button>
               <button
                 onClick={() => openSettings(child.id)}
-                className="px-4 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+                className="px-4 py-2.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
               >
                 Settings
               </button>
@@ -242,8 +249,8 @@ export default function ChildrenContent({
         ))}
       </div>
 
-      <div className="bg-gray-50 rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Quick Guide: Adding a Child</h3>
+      <div className="bg-gray-50 rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Quick Guide: Adding a Child</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             {
@@ -297,60 +304,56 @@ export default function ChildrenContent({
               </div>
               <button
                 onClick={() => setSelectedChildId(null)}
-                className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 cursor-pointer"
                 aria-label="Close"
               >
                 <X className="w-4 h-4 text-gray-600" />
               </button>
             </div>
 
-            <div className="px-5 pt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Quick Jump</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                  { label: "Today's Usage", tab: 'dashboard' as const },
-                  { label: 'Daily Screen Time', tab: 'time-limits' as const },
-                  { label: 'Blocked Categories', tab: 'blocking' as const },
-                  { label: 'Child Profile', tab: 'settings' as const },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => {
-                      onJumpToSection(item.tab, selectedChild.id);
-                      setSelectedChildId(null);
-                    }}
-                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
-                <p className="text-xs text-gray-500 mb-1">Today&apos;s Usage</p>
+                <button
+                  type="button"
+                  onClick={() => jumpFromModal('dashboard')}
+                  className="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-800 hover:underline"
+                >
+                  Today&apos;s Usage
+                </button>
                 <p className="text-lg font-semibold text-gray-900">{selectedChild.todayUsage}</p>
-                <p className="text-xs text-gray-500 mt-1">Live from dashboard data</p>
               </div>
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
-                <p className="text-xs text-gray-500 mb-1">Daily Screen Time</p>
+                <button
+                  type="button"
+                  onClick={() => jumpFromModal('time-limits')}
+                  className="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-800 hover:underline"
+                >
+                  Daily Screen Time
+                </button>
                 <p className="text-lg font-semibold text-gray-900">
                   {dailyLimitLoading ? 'Loading...' : dailyLimitLabel}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Synced with Time Limits</p>
                 {dailyLimitError && <p className="mt-1 text-xs text-red-600">{dailyLimitError}</p>}
               </div>
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
-                <p className="text-xs text-gray-500 mb-1">Bedtime</p>
+                <button
+                  type="button"
+                  onClick={() => jumpFromModal('time-limits')}
+                  className="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-800 hover:underline"
+                >
+                  Bedtime
+                </button>
                 <p className="text-lg font-semibold text-gray-900">9:00 PM - 7:00 AM</p>
-                <p className="text-xs text-gray-500 mt-1">School nights</p>
               </div>
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
-                <p className="text-xs text-gray-500 mb-1">Blocked Categories</p>
+                <button
+                  type="button"
+                  onClick={() => jumpFromModal('blocking')}
+                  className="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-800 hover:underline"
+                >
+                  Blocked Categories
+                </button>
                 <p className="text-lg font-semibold text-gray-900">Adult, Gambling</p>
-                <p className="text-xs text-gray-500 mt-1">2 active filters</p>
               </div>
             </div>
 
@@ -371,7 +374,7 @@ export default function ChildrenContent({
                       void handleRenameChild();
                     }}
                     disabled={renameSaving}
-                    className="h-10 rounded-lg bg-blue-500 px-4 text-sm font-medium text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="h-10 rounded-lg bg-blue-500 px-4 text-sm font-medium text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70 cursor-pointer"
                   >
                     {renameSaving ? 'Saving...' : 'Save Name'}
                   </button>
@@ -383,7 +386,7 @@ export default function ChildrenContent({
                 <button
                   type="button"
                   onClick={() => setSelectedChildId(null)}
-                  className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
                 >
                   Close
                 </button>
