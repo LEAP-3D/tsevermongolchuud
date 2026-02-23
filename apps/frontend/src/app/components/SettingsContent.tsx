@@ -7,7 +7,11 @@ import { X } from "lucide-react";
 import type { Child } from "./types";
 import { clearStoredUser, useAuthUser } from "@/lib/auth";
 
-export default function SettingsContent() {
+export default function SettingsContent({
+  preferredChildId = null,
+}: {
+  preferredChildId?: number | null;
+}) {
   const { user } = useAuthUser();
   const router = useRouter();
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -22,6 +26,7 @@ export default function SettingsContent() {
   const [childrenLoading, setChildrenLoading] = useState(false);
   const [childrenError, setChildrenError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [highlightChildId, setHighlightChildId] = useState<number | null>(null);
 
   const loadChildren = useCallback(async () => {
     if (!user?.id) {
@@ -31,7 +36,10 @@ export default function SettingsContent() {
     setChildrenLoading(true);
     setChildrenError("");
     try {
-      const response = await fetch(`/api/child?parentId=${encodeURIComponent(String(user.id))}`);
+      const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const response = await fetch(
+        `/api/child?parentId=${encodeURIComponent(String(user.id))}&timeZone=${encodeURIComponent(localTimeZone)}`,
+      );
       if (!response.ok) {
         let message = "Failed to load children.";
         try {
@@ -44,12 +52,19 @@ export default function SettingsContent() {
         }
         throw new Error(message);
       }
-      const data: Array<{ id: number; name: string; pin?: string | null }> = await response.json();
+      const data: Array<{
+        id: number;
+        name: string;
+        pin?: string | null;
+        todayUsageMinutes?: number;
+      }> = await response.json();
       const mapped: Child[] = data.map((child) => ({
         id: child.id,
         name: child.name,
         status: "Active",
-        todayUsage: "0h 0m",
+        todayUsage: `${Math.floor((Number(child.todayUsageMinutes) || 0) / 60)}h ${
+          Math.max(0, Math.round(Number(child.todayUsageMinutes) || 0)) % 60
+        }m`,
         pin: child.pin ?? "----",
         avatar: child.name?.[0]?.toUpperCase() ?? "C",
       }));
@@ -65,6 +80,18 @@ export default function SettingsContent() {
   useEffect(() => {
     void loadChildren();
   }, [loadChildren, user?.id]);
+
+  useEffect(() => {
+    if (!preferredChildId) return;
+    if (!children.some((child) => child.id === preferredChildId)) return;
+    setHighlightChildId(preferredChildId);
+    const target = document.getElementById(`settings-child-${preferredChildId}`);
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timeout = window.setTimeout(() => {
+      setHighlightChildId((current) => (current === preferredChildId ? null : current));
+    }, 2200);
+    return () => window.clearTimeout(timeout);
+  }, [children, preferredChildId]);
 
   const handleDeleteChild = async (childId: number, childName: string) => {
     const confirmed = window.confirm(`Delete ${childName}? This cannot be undone.`);
@@ -119,14 +146,14 @@ export default function SettingsContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-1">Settings</h1>
-        <p className="text-sm md:text-base text-gray-500">Manage your ParentGuard account and preferences</p>
+        <h1 className="text-xl md:text-3xl font-semibold text-gray-900 mb-1">Settings</h1>
+        <p className="text-xs md:text-sm text-gray-500">Manage your ParentGuard account and preferences</p>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Account Settings</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Account Settings</h3>
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
             <div>
@@ -175,8 +202,8 @@ export default function SettingsContent() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Privacy & Security</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Privacy & Security</h3>
         <div className="space-y-3">
           <button
             onClick={() => setActiveSecurityModal("password")}
@@ -202,9 +229,9 @@ export default function SettingsContent() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">Manage Children</h3>
+          <h3 className="text-sm md:text-base font-semibold text-gray-900">Manage Children</h3>
           <button
             onClick={() => void loadChildren()}
             className="w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
@@ -227,7 +254,15 @@ export default function SettingsContent() {
         )}
         <div className="space-y-3">
           {children.map(child => (
-            <div key={child.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-gray-100 bg-gray-50 p-4">
+            <div
+              key={child.id}
+              id={`settings-child-${child.id}`}
+              className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border p-4 transition-colors ${
+                highlightChildId === child.id
+                  ? "border-blue-300 bg-blue-50"
+                  : "border-gray-100 bg-gray-50"
+              }`}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500 text-white font-bold flex items-center justify-center">
                   {child.avatar}
@@ -249,8 +284,8 @@ export default function SettingsContent() {
         </div>
       </div>
 
-      <div className="bg-blue-50 rounded-2xl p-4 md:p-6 border border-blue-100">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3">Need Help?</h3>
+      <div className="bg-blue-50 rounded-2xl p-3.5 md:p-5 border border-blue-100">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">Need Help?</h3>
         <p className="text-sm text-gray-700 mb-4">Our support team is here to assist you with any questions.</p>
         <button
           onClick={() => setShowHelpModal(true)}
@@ -260,8 +295,8 @@ export default function SettingsContent() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-3">Account</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">Account</h3>
         <p className="text-sm text-gray-500 mb-4">Sign out of your account on this device.</p>
         <button
           onClick={async () => {

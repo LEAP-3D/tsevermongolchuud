@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { attachSessionCookie, createSessionToken } from "@/lib/session";
+import { hashPassword } from "@/lib/password";
 
 export async function POST(req: Request) {
   try {
@@ -13,10 +14,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
+    const hashedPassword = await hashPassword(providedPassword);
+
     const user = await prisma.user.create({
       data: {
         email: trimmedEmail,
-        password: providedPassword,
+        password: hashedPassword,
         name: trimmedName || null,
       },
       select: { id: true, email: true, name: true },

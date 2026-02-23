@@ -2,7 +2,7 @@
 /* eslint-disable max-lines */
 
 import { useMemo, useState } from 'react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { ArrowUpRight, X } from 'lucide-react';
 import Image from 'next/image';
 import type { CategorySlice, CategoryWebsiteDetail, RiskPoint, RiskWebsiteDetail } from './types';
@@ -132,11 +132,27 @@ export default function DashboardBreakdown({
       .sort((a, b) => levelOrder.indexOf(a.level) - levelOrder.indexOf(b.level));
   }, [riskWebsiteDetails]);
 
+  const riskBarData = useMemo(() => {
+    const valuesByLevel = riskData.reduce<Record<string, number>>((acc, item) => {
+      acc[item.level] = item.count;
+      return acc;
+    }, {});
+
+    return [
+      {
+        label: "Risk",
+        Safe: valuesByLevel.Safe ?? 0,
+        Suspicious: valuesByLevel.Suspicious ?? 0,
+        Dangerous: valuesByLevel.Dangerous ?? 0,
+      },
+    ];
+  }, [riskData]);
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">Categories</h3>
+    <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-sm md:text-base font-semibold text-gray-900">Categories</h3>
           <button
             onClick={() => setShowCategoryDetails(true)}
             className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium"
@@ -145,11 +161,11 @@ export default function DashboardBreakdown({
           </button>
         </div>
         {categoryData.length === 0 ? (
-          <div className="h-56 md:h-60 flex items-center justify-center text-sm text-gray-500">
+          <div className="h-52 md:h-56 flex items-center justify-center text-sm text-gray-500">
             Select a child to see category data.
           </div>
         ) : (
-          <div className="h-56 md:h-60">
+          <div className="h-52 md:h-56">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={categoryData} dataKey="value" cx="50%" cy="50%" outerRadius={75} innerRadius={45} strokeWidth={0}>
@@ -182,9 +198,9 @@ export default function DashboardBreakdown({
         )}
       </div>
 
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200/80">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">Risk Assessment</h3>
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-sm md:text-base font-semibold text-gray-900">Risk Assessment</h3>
           <button
             onClick={() => setShowRiskDetails(true)}
             className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1 font-medium"
@@ -193,46 +209,64 @@ export default function DashboardBreakdown({
           </button>
         </div>
         {riskData.length === 0 ? (
-          <div className="h-56 md:h-60 flex items-center justify-center text-sm text-gray-500">
+          <div className="h-52 md:h-56 flex items-center justify-center text-sm text-gray-500">
             Select a child to see risk data.
           </div>
         ) : (
-          <div className="h-56 md:h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={riskData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis
-                  dataKey="level"
-                  stroke="#8E8E93"
-                  axisLine={false}
-                  tickLine={false}
-                  style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-                />
-                <YAxis
-                  stroke="#8E8E93"
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(value: number) => formatMinutes(Number(value))}
-                  style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-                />
-                <Tooltip
-                  formatter={(value: number | string | undefined) => formatMinutes(Number(value ?? 0))}
-                  contentStyle={{
-                    background: '#fff',
-                    border: '1px solid #e5e5e5',
-                    borderRadius: '12px',
-                    fontSize: '13px',
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                  }}
-                />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]} barSize={40}>
-                  {riskData.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-52 md:h-56 flex flex-col gap-3">
+            <div className="h-32 shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={riskBarData} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                  <XAxis
+                    type="number"
+                    stroke="#8E8E93"
+                    axisLine={false}
+                    tickLine={false}
+                    style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
+                    tickFormatter={(value: number) => formatMinutes(Number(value))}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    hide
+                    stroke="#8E8E93"
+                    axisLine={false}
+                    tickLine={false}
+                    style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
+                  />
+                  <Tooltip
+                    formatter={(value: number | string | undefined) => formatMinutes(Number(value ?? 0))}
+                    contentStyle={{
+                      background: '#fff',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: '12px',
+                      fontSize: '13px',
+                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                    }}
+                  />
+                  <Bar dataKey="Safe" stackId="risk" fill="#34C759" radius={[12, 0, 0, 12]} barSize={38} />
+                  <Bar dataKey="Suspicious" stackId="risk" fill="#FF9500" barSize={38} />
+                  <Bar dataKey="Dangerous" stackId="risk" fill="#FF3B30" radius={[0, 12, 12, 0]} barSize={38} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              {[
+                { level: "Safe", color: "#34C759" },
+                { level: "Suspicious", color: "#FF9500" },
+                { level: "Dangerous", color: "#FF3B30" },
+              ].map((item) => {
+                const value = riskData.find((entry) => entry.level === item.level)?.count ?? 0;
+                return (
+                  <div key={item.level} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-600">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="font-medium">{item.level}</span>
+                    <span>{formatMinutes(value)}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -83,6 +83,12 @@ function applyBlockCopy(source, reason) {
     return;
   }
 
+  if (reason === "BEDTIME_ACTIVE") {
+    explanationEl.textContent = "Bedtime schedule is active right now.";
+    noticeEl.textContent = "Access will restore outside the configured bedtime window.";
+    return;
+  }
+
   explanationEl.textContent = "Access is currently blocked by SafeKid policy.";
   noticeEl.textContent = "Policy is being checked in real time.";
 }

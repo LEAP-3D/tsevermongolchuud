@@ -42,7 +42,7 @@ const getDayStart = (timeZone: string, value: Date = new Date()) => {
 
 
 const normalizeRange = (range: string | null) => {
-  if (range === "today" || range === "7d" || range === "30d") return range;
+  if (range === "today" || range === "7d" || range === "30d" || range === "all") return range;
   return "7d";
 };
 
@@ -103,9 +103,34 @@ const buildDayLabels = (days: number, timeZone: string) => {
   return labels;
 };
 
+const buildDayLabelsBetween = (startDate: Date, endDate: Date, timeZone: string) => {
+  const labels: Array<{ key: string; label: string; date: Date }> = [];
+  const start = getDayStart(timeZone, startDate);
+  const end = getDayStart(timeZone, endDate);
+  const cursor = new Date(start);
+  while (cursor.getTime() <= end.getTime()) {
+    const key = toDateKey(cursor, timeZone);
+    const label = cursor.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "2-digit",
+      timeZone,
+    });
+    labels.push({ key, label, date: new Date(cursor) });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return labels;
+};
+
 const secondsToMinutes = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds <= 0) return 0;
   return seconds / 60;
+};
+
+const secondsToTimelineMinutes = (seconds: number) => {
+  const safe = Math.max(0, Number(seconds ?? 0));
+  if (safe <= 0) return 0;
+  return Math.max(1, Math.round(secondsToMinutes(safe)));
 };
 
 const normalizeCategoryName = (value: string | null | undefined) => {
@@ -152,20 +177,32 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const days = parseRangeDays(range);
-  const start = getDayStart(timeZone, new Date());
-  start.setUTCDate(start.getUTCDate() - (days - 1));
+  const days = range === "all" ? null : parseRangeDays(range);
+  const start = days ? getDayStart(timeZone, new Date()) : null;
+  if (start && days) {
+    start.setUTCDate(start.getUTCDate() - (days - 1));
+  }
 
-  const historyStart = range === "today"
-    ? new Date(start.getTime() - 24 * 60 * 60 * 1000)
-    : start;
+  const historyStart =
+    range === "all"
+      ? null
+      : range === "today" && start
+        ? new Date(start.getTime() - 24 * 60 * 60 * 1000)
+        : start;
+
+  const historyWhere: { childId: number; visitedAt?: { gte: Date } } = { childId };
+  if (historyStart) {
+    historyWhere.visitedAt = { gte: historyStart };
+  }
+
+  const alertsWhere: { childId: number; createdAt?: { gte: Date } } = { childId };
+  if (start) {
+    alertsWhere.createdAt = { gte: start };
+  }
 
   const [history, alerts, blockedSitesCount] = await Promise.all([
     prisma.history.findMany({
-      where: {
-        childId,
-        visitedAt: { gte: historyStart },
-      },
+      where: historyWhere,
       select: {
         categoryName: true,
         fullUrl: true,
@@ -176,10 +213,7 @@ export async function GET(req: Request) {
       },
     }),
     prisma.alert.findMany({
-      where: {
-        childId,
-        createdAt: { gte: start },
-      },
+      where: alertsWhere,
       select: { type: true },
     }),
     prisma.childUrlSetting.count({
@@ -189,16 +223,14 @@ export async function GET(req: Request) {
       },
     }),
   ]);
-
-  const labels = buildDayLabels(days, timeZone);
-  const dayTotals = new Map(labels.map(item => [item.key, 0]));
-  for (const entry of history) {
-    if (!entry.visitedAt) continue;
-    const key = toDateKey(new Date(entry.visitedAt), timeZone);
-    if (dayTotals.has(key)) {
-      dayTotals.set(key, (dayTotals.get(key) ?? 0) + (entry.duration ?? 0));
-    }
-  }
+  const todayKey = getDateKey(new Date(), timeZone);
+  const todaySeconds = history.reduce((sum, entry) => {
+    if (!entry.visitedAt) return sum;
+    const visitedAt = new Date(entry.visitedAt);
+    if (Number.isNaN(visitedAt.getTime())) return sum;
+    if (toDateKey(visitedAt, timeZone) !== todayKey) return sum;
+    return sum + Math.max(0, Number(entry.duration ?? 0));
+  }, 0);
 
   let usageTimeline: Array<{
     day: string;
@@ -234,13 +266,13 @@ export async function GET(req: Request) {
       >
     >();
 
-    const todayKey = getDateKey(new Date(), timeZone);
+    const todayBucketKey = getDateKey(new Date(), timeZone);
 
     for (const entry of history) {
       if (!entry.visitedAt) continue;
       const visited = new Date(entry.visitedAt);
       if (Number.isNaN(visited.getTime())) continue;
-      if (getDateKey(visited, timeZone) !== todayKey) continue;
+      if (getDateKey(visited, timeZone) !== todayBucketKey) continue;
       const hour = getHour(visited, timeZone);
       const bucket = Math.floor(hour / bucketHours) * bucketHours;
       hourTotals.set(bucket, (hourTotals.get(bucket) ?? 0) + (entry.duration ?? 0));
@@ -267,7 +299,7 @@ export async function GET(req: Request) {
 
     usageTimeline = hourLabels.map(item => ({
       day: item.label,
-      minutes: Math.round(secondsToMinutes(hourTotals.get(item.key) ?? 0)),
+      minutes: secondsToTimelineMinutes(hourTotals.get(item.key) ?? 0),
       sites: Array.from((bucketSites.get(item.key) ?? new Map()).values())
         .sort((a, b) => b.seconds - a.seconds)
         .slice(0, 8)
@@ -283,7 +315,89 @@ export async function GET(req: Request) {
     }));
 
     rangeTotalSeconds = Array.from(hourTotals.values()).reduce((sum, value) => sum + value, 0);
+  } else if (range === "all") {
+    const firstVisitedAt = history.reduce<Date | null>((oldest, entry) => {
+      if (!entry.visitedAt) return oldest;
+      const candidate = new Date(entry.visitedAt);
+      if (Number.isNaN(candidate.getTime())) return oldest;
+      if (!oldest || candidate.getTime() < oldest.getTime()) return candidate;
+      return oldest;
+    }, null);
+    const allTimeLabels = buildDayLabelsBetween(firstVisitedAt ?? new Date(), new Date(), timeZone);
+    const allTimeTotals = new Map(allTimeLabels.map((item) => [item.key, 0]));
+    const allTimeSites = new Map<
+      string,
+      Map<
+        string,
+        {
+          url: string;
+          domain: string;
+          category: string;
+          seconds: number;
+          enteredAtMs: number;
+          leftAtMs: number;
+        }
+      >
+    >();
+
+    for (const entry of history) {
+      if (!entry.visitedAt) continue;
+      const visitedAt = new Date(entry.visitedAt);
+      if (Number.isNaN(visitedAt.getTime())) continue;
+      const key = toDateKey(visitedAt, timeZone);
+      if (!allTimeTotals.has(key)) continue;
+      allTimeTotals.set(key, (allTimeTotals.get(key) ?? 0) + (entry.duration ?? 0));
+
+      const url = typeof entry.fullUrl === "string" && entry.fullUrl ? entry.fullUrl : "";
+      if (!url) continue;
+      if (!allTimeSites.has(key)) {
+        allTimeSites.set(key, new Map());
+      }
+      const byUrl = allTimeSites.get(key);
+      if (!byUrl) continue;
+      const leftAtMs = visitedAt.getTime();
+      const enteredAtMs = leftAtMs - Math.max(0, Number(entry.duration ?? 0)) * 1000;
+      const current = byUrl.get(url);
+      byUrl.set(url, {
+        url,
+        domain: entry.domain || "-",
+        category: normalizeCategoryName(entry.categoryName),
+        seconds: (current?.seconds ?? 0) + (entry.duration ?? 0),
+        enteredAtMs: Math.min(current?.enteredAtMs ?? enteredAtMs, enteredAtMs),
+        leftAtMs: Math.max(current?.leftAtMs ?? leftAtMs, leftAtMs),
+      });
+    }
+
+    usageTimeline = allTimeLabels.map((item) => ({
+      day: item.label,
+      minutes: secondsToTimelineMinutes(allTimeTotals.get(item.key) ?? 0),
+      sites: Array.from((allTimeSites.get(item.key) ?? new Map()).values())
+        .sort((a, b) => b.seconds - a.seconds)
+        .slice(0, 8)
+        .map((site) => ({
+          url: site.url,
+          domain: site.domain,
+          category: site.category,
+          minutes: Math.max(1, Math.round(secondsToMinutes(site.seconds))),
+          logoUrl: toFaviconUrl(site.domain),
+          enteredAt: new Date(site.enteredAtMs).toISOString(),
+          leftAt: new Date(site.leftAtMs).toISOString(),
+        })),
+    }));
+
+    rangeTotalSeconds = Array.from(allTimeTotals.values()).reduce((sum, value) => sum + value, 0);
   } else {
+    const rangeDays = days ?? 7;
+    const labels = buildDayLabels(rangeDays, timeZone);
+    const dayTotals = new Map(labels.map((item) => [item.key, 0]));
+    for (const entry of history) {
+      if (!entry.visitedAt) continue;
+      const key = toDateKey(new Date(entry.visitedAt), timeZone);
+      if (dayTotals.has(key)) {
+        dayTotals.set(key, (dayTotals.get(key) ?? 0) + (entry.duration ?? 0));
+      }
+    }
+
     const daySites = new Map<
       string,
       Map<
@@ -325,7 +439,7 @@ export async function GET(req: Request) {
 
     usageTimeline = labels.map(item => ({
       day: item.label,
-      minutes: Math.round(secondsToMinutes(dayTotals.get(item.key) ?? 0)),
+      minutes: secondsToTimelineMinutes(dayTotals.get(item.key) ?? 0),
       sites: Array.from((daySites.get(item.key) ?? new Map()).values())
         .sort((a, b) => b.seconds - a.seconds)
         .slice(0, 8)
@@ -454,8 +568,6 @@ export async function GET(req: Request) {
 
   const safetyScore = Math.max(0, Math.min(100, Math.round(weightedAverageSafety - safetyPenalty)));
 
-  const todayKey = getDateKey(new Date(), timeZone);
-  const todaySeconds = dayTotals.get(todayKey) ?? 0;
   const totalSeconds = rangeTotalSeconds;
   const categoryWebsiteDetails = Array.from(categoryWebsiteSeconds.values())
     .sort((a, b) => b.seconds - a.seconds)

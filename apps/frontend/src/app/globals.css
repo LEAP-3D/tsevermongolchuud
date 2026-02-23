@@ -25,6 +25,23 @@ body {
   font-family: var(--font-sans);
 }
 
+button,
+a[href],
+[role="button"],
+select,
+summary,
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
 /* Tesla auth layout fallback styles */
 .tesla-auth-layout {
   min-height: 100vh;

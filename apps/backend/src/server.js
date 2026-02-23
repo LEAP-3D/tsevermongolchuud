@@ -10,7 +10,6 @@ const debug = require("./routes/debug");
 
 const app = express();
 const DEFAULT_PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
-const FALLBACK_PORT = 8888;
 
 // --- Middlewares ---
 app.use(cors()); // Frontend Ð±Ð¾Ð»Ð¾Ð½ Extension-Ð¾Ð¾Ñ Ñ…Ð°Ð½Ð´Ð°Ñ… ÑÑ€Ñ…
@@ -39,17 +38,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server (fallback to 8888 if 5000 is already in use)
+// Start Server on a stable port
 const startServer = (port) => {
   const server = app.listen(port, () => {
     console.log(`\nServer is ready at: http://localhost:${port}\n`);
   });
 
   server.on("error", (err) => {
-    if (err.code === "EADDRINUSE" && port === 5000) {
-      console.warn(`Port ${port} is in use. Falling back to ${FALLBACK_PORT}.`);
-      startServer(FALLBACK_PORT);
-      return;
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${port} is already in use. Stop the other process or set PORT.`);
+      process.exit(1);
     }
     throw err;
   });
