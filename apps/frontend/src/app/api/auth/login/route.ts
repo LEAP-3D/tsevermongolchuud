@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { attachSessionCookie, createSessionToken } from "@/lib/session";
+import { hashPassword, isHashedPassword, verifyPassword } from "@/lib/password";
 
 export async function POST(req: Request) {
   try {
@@ -17,8 +18,15 @@ export async function POST(req: Request) {
       select: { id: true, email: true, name: true, password: true },
     });
 
-    if (!user || user.password !== providedPassword) {
+    if (!user || !(await verifyPassword(providedPassword, user.password))) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
+    }
+    if (!isHashedPassword(user.password)) {
+      const hashedPassword = await hashPassword(providedPassword);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword },
+      });
     }
 
     const session = createSessionToken({ userId: user.id, email: user.email });

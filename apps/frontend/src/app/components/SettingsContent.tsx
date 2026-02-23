@@ -7,7 +7,11 @@ import { X } from "lucide-react";
 import type { Child } from "./types";
 import { clearStoredUser, useAuthUser } from "@/lib/auth";
 
-export default function SettingsContent() {
+export default function SettingsContent({
+  preferredChildId = null,
+}: {
+  preferredChildId?: number | null;
+}) {
   const { user } = useAuthUser();
   const router = useRouter();
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -22,6 +26,7 @@ export default function SettingsContent() {
   const [childrenLoading, setChildrenLoading] = useState(false);
   const [childrenError, setChildrenError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [highlightChildId, setHighlightChildId] = useState<number | null>(null);
 
   const loadChildren = useCallback(async () => {
     if (!user?.id) {
@@ -31,7 +36,10 @@ export default function SettingsContent() {
     setChildrenLoading(true);
     setChildrenError("");
     try {
-      const response = await fetch(`/api/child?parentId=${encodeURIComponent(String(user.id))}`);
+      const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const response = await fetch(
+        `/api/child?parentId=${encodeURIComponent(String(user.id))}&timeZone=${encodeURIComponent(localTimeZone)}`,
+      );
       if (!response.ok) {
         let message = "Failed to load children.";
         try {
@@ -44,12 +52,19 @@ export default function SettingsContent() {
         }
         throw new Error(message);
       }
-      const data: Array<{ id: number; name: string; pin?: string | null }> = await response.json();
+      const data: Array<{
+        id: number;
+        name: string;
+        pin?: string | null;
+        todayUsageMinutes?: number;
+      }> = await response.json();
       const mapped: Child[] = data.map((child) => ({
         id: child.id,
         name: child.name,
         status: "Active",
-        todayUsage: "0h 0m",
+        todayUsage: `${Math.floor((Number(child.todayUsageMinutes) || 0) / 60)}h ${
+          Math.max(0, Math.round(Number(child.todayUsageMinutes) || 0)) % 60
+        }m`,
         pin: child.pin ?? "----",
         avatar: child.name?.[0]?.toUpperCase() ?? "C",
       }));
@@ -65,6 +80,18 @@ export default function SettingsContent() {
   useEffect(() => {
     void loadChildren();
   }, [loadChildren, user?.id]);
+
+  useEffect(() => {
+    if (!preferredChildId) return;
+    if (!children.some((child) => child.id === preferredChildId)) return;
+    setHighlightChildId(preferredChildId);
+    const target = document.getElementById(`settings-child-${preferredChildId}`);
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timeout = window.setTimeout(() => {
+      setHighlightChildId((current) => (current === preferredChildId ? null : current));
+    }, 2200);
+    return () => window.clearTimeout(timeout);
+  }, [children, preferredChildId]);
 
   const handleDeleteChild = async (childId: number, childName: string) => {
     const confirmed = window.confirm(`Delete ${childName}? This cannot be undone.`);
@@ -227,7 +254,15 @@ export default function SettingsContent() {
         )}
         <div className="space-y-3">
           {children.map(child => (
-            <div key={child.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-gray-100 bg-gray-50 p-4">
+            <div
+              key={child.id}
+              id={`settings-child-${child.id}`}
+              className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border p-4 transition-colors ${
+                highlightChildId === child.id
+                  ? "border-blue-300 bg-blue-50"
+                  : "border-gray-100 bg-gray-50"
+              }`}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500 text-white font-bold flex items-center justify-center">
                   {child.avatar}

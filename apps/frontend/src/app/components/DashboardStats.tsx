@@ -23,7 +23,9 @@ export default function DashboardStats({ selectedChild, rangeUsage, safetyScore,
     ? "Today's Usage"
     : timeFilter === "7d"
       ? "Last 7 Days"
-      : "Last 30 Days";
+      : timeFilter === "30d"
+        ? "Last 30 Days"
+        : "All-Time Usage";
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

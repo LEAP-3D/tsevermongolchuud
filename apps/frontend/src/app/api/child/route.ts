@@ -2,6 +2,34 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
 
+const DEFAULT_TIMEZONE = "UTC";
+
+const normalizeTimeZone = (value: string | null) => {
+  if (!value) return DEFAULT_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
+    return value;
+  } catch {
+    return DEFAULT_TIMEZONE;
+  }
+};
+
+const getDateKey = (value: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone }).format(value);
+
+const getDayStart = (timeZone: string, value: Date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const year = Number(parts.find((part) => part.type === "year")?.value ?? 0);
+  const month = Number(parts.find((part) => part.type === "month")?.value ?? 1);
+  const day = Number(parts.find((part) => part.type === "day")?.value ?? 1);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
 /* CREATE child */
 export async function POST(req: Request) {
   try {
@@ -47,12 +75,45 @@ export async function GET(req: Request) {
   if (!session) {
     return unauthorizedJson();
   }
+  const { searchParams } = new URL(req.url);
+  const timeZone = normalizeTimeZone(searchParams.get("timeZone"));
+  const todayKey = getDateKey(new Date(), timeZone);
+  const todayStart = getDayStart(timeZone, new Date());
 
   const children = await prisma.child.findMany({
     where: { parentId: session.userId },
   });
 
-  return NextResponse.json(children);
+  if (children.length === 0) {
+    return NextResponse.json([]);
+  }
+
+  const childIds = children.map((child) => child.id);
+  const todayHistory = await prisma.history.findMany({
+    where: {
+      childId: { in: childIds },
+      visitedAt: { gte: todayStart },
+    },
+    select: { childId: true, duration: true, visitedAt: true },
+  });
+
+  const todaySecondsByChild = new Map<number, number>();
+  for (const row of todayHistory) {
+    if (!row.visitedAt) continue;
+    const visitedAt = new Date(row.visitedAt);
+    if (Number.isNaN(visitedAt.getTime())) continue;
+    if (getDateKey(visitedAt, timeZone) !== todayKey) continue;
+
+    const current = todaySecondsByChild.get(row.childId) ?? 0;
+    todaySecondsByChild.set(row.childId, current + Math.max(0, Number(row.duration ?? 0)));
+  }
+
+  const enriched = children.map((child) => ({
+    ...child,
+    todayUsageMinutes: Math.round((todaySecondsByChild.get(child.id) ?? 0) / 60),
+  }));
+
+  return NextResponse.json(enriched);
 }
 
 /* UPDATE */

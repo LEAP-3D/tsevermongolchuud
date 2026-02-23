@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../lib/prisma");
 const { checkGlobalDailyLimit, getUBTodayDate } = require("../lib/timeUtils");
+const { hashPassword, isHashedPassword, verifyPassword } = require("../lib/password");
 
 const verifyParentByTokenAndPassword = async (token, password) => {
   const tokenMatch = typeof token === "string" ? token.match(/^user_(\d+)_token$/) : null;
@@ -12,7 +13,14 @@ const verifyParentByTokenAndPassword = async (token, password) => {
     where: { id: userId },
     select: { id: true, password: true },
   });
-  if (!user || user.password !== password) return null;
+  if (!user || !(await verifyPassword(password, user.password))) return null;
+  if (!isHashedPassword(user.password)) {
+    const hashedPassword = await hashPassword(password);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+  }
   return user.id;
 };
 
@@ -84,10 +92,17 @@ router.post("/parent-login", async (req, res, next) => {
       include: { children: true },
     });
 
-    if (!user || user.password !== password) {
+    if (!user || !(await verifyPassword(password, user.password))) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid email or password." });
+    }
+    if (!isHashedPassword(user.password)) {
+      const hashedPassword = await hashPassword(password);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword },
+      });
     }
 
     const childrenList = user.children.map((child) => ({
@@ -131,8 +146,15 @@ router.post("/verify-parent", async (req, res, next) => {
 
     const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user || user.password !== password) {
+    if (!user || !(await verifyPassword(password, user.password))) {
       return res.status(401).json({ success: false });
+    }
+    if (!isHashedPassword(user.password)) {
+      const hashedPassword = await hashPassword(password);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword },
+      });
     }
 
     res.json({ success: true });

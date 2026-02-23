@@ -45,6 +45,7 @@ const describeAction = (action: AssistantAction) => {
 export default function HomeDashboard() {
   const { user, loading: authLoading } = useAuthUser();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [preferredChildId, setPreferredChildId] = useState<number | null>(null);
   const [showAddChild, setShowAddChild] = useState(false);
   const [generatedPin, setGeneratedPin] = useState("");
   const [copiedPin, setCopiedPin] = useState(false);
@@ -227,7 +228,10 @@ export default function HomeDashboard() {
     setChildrenLoading(true);
     setChildrenError("");
     try {
-      const response = await fetch(`/api/child?parentId=${encodeURIComponent(String(user.id))}`);
+      const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const response = await fetch(
+        `/api/child?parentId=${encodeURIComponent(String(user.id))}&timeZone=${encodeURIComponent(localTimeZone)}`,
+      );
       if (!response.ok) {
         let message = "Failed to load children.";
         try {
@@ -240,13 +244,23 @@ export default function HomeDashboard() {
         }
         throw new Error(message);
       }
-      const data: Array<{ id: number; name: string; pin?: string | null }> = await response.json();
+      const data: Array<{
+        id: number;
+        name: string;
+        pin?: string | null;
+        todayUsageMinutes?: number;
+      }> = await response.json();
       const mapped: Child[] = data.map((child) => {
+        const usageMinutes = Number.isFinite(Number(child.todayUsageMinutes))
+          ? Math.max(0, Math.round(Number(child.todayUsageMinutes)))
+          : 0;
+        const usageHours = Math.floor(usageMinutes / 60);
+        const usageRemainderMinutes = usageMinutes % 60;
         return {
           id: child.id,
           name: child.name,
           status: "Active",
-          todayUsage: "0h 0m",
+          todayUsage: `${usageHours}h ${usageRemainderMinutes}m`,
           pin: child.pin ?? "----",
           avatar: child.name?.[0]?.toUpperCase() ?? "C",
         };
@@ -320,6 +334,7 @@ export default function HomeDashboard() {
         safetyScore: number;
         blockedSites: number;
         rangeUsageMinutes: number;
+        todayUsageMinutes: number;
       } = await response.json();
       setUsageData(payload.usageTimeline ?? []);
       setCategoryData(payload.categoryData ?? []);
@@ -329,6 +344,19 @@ export default function HomeDashboard() {
       setSafetyScore(Number.isFinite(payload.safetyScore) ? payload.safetyScore : null);
       setBlockedSites(Number.isFinite(payload.blockedSites) ? payload.blockedSites : null);
       setRangeUsageMinutes(Number.isFinite(payload.rangeUsageMinutes) ? payload.rangeUsageMinutes : null);
+      if (Number.isFinite(payload.todayUsageMinutes) && selectedChildId) {
+        const usageMinutes = Math.max(0, Math.round(payload.todayUsageMinutes));
+        const usageHours = Math.floor(usageMinutes / 60);
+        const usageRemainderMinutes = usageMinutes % 60;
+        const usageLabel = `${usageHours}h ${usageRemainderMinutes}m`;
+        setChildren((prev) =>
+          prev.map((child) =>
+            child.id === selectedChildId
+              ? { ...child, todayUsage: usageLabel }
+              : child,
+          ),
+        );
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load dashboard.";
       setDashboardError(message);
@@ -369,10 +397,35 @@ export default function HomeDashboard() {
   const handleCreatedChild = (child: Child) => {
     setChildren(prev => [child, ...prev]);
     setSelectedChildId(child.id);
+    setPreferredChildId(child.id);
+  };
+
+  const handleRenamedChild = (childId: number, name: string) => {
+    setChildren((prev) =>
+      prev.map((child) =>
+        child.id === childId
+          ? {
+              ...child,
+              name,
+              avatar: name?.[0]?.toUpperCase() ?? "C",
+            }
+          : child,
+      ),
+    );
+  };
+
+  const handleJumpToChildSection = (
+    tab: "dashboard" | "time-limits" | "blocking" | "settings",
+    childId: number,
+  ) => {
+    setSelectedChildId(childId);
+    setPreferredChildId(childId);
+    setActiveTab(tab);
   };
 
   const handleViewActivity = (childId: number) => {
     setSelectedChildId(childId);
+    setPreferredChildId(childId);
     setActiveTab("dashboard");
   };
 
@@ -413,9 +466,9 @@ export default function HomeDashboard() {
           </>
         );
       case "blocking":
-        return <BlockingContent />;
+        return <BlockingContent preferredChildId={preferredChildId ?? selectedChildId} />;
       case "time-limits":
-        return <TimeLimitsContent />;
+        return <TimeLimitsContent preferredChildId={preferredChildId ?? selectedChildId} />;
       case "children":
         return (
           <>
@@ -439,11 +492,13 @@ export default function HomeDashboard() {
               onCopyPin={copyPin}
               onViewActivity={handleViewActivity}
               onCreatedChild={handleCreatedChild}
+              onRenamedChild={handleRenamedChild}
+              onJumpToSection={handleJumpToChildSection}
             />
           </>
         );
       case "settings":
-        return <SettingsContent />;
+        return <SettingsContent preferredChildId={preferredChildId ?? selectedChildId} />;
       default:
         return null;
     }

@@ -24,7 +24,11 @@ const normalizeDomain = (raw: string) =>
 const getFaviconUrl = (domain: string) =>
   `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(domain)}`;
 
-export default function BlockingContent() {
+export default function BlockingContent({
+  preferredChildId = null,
+}: {
+  preferredChildId?: number | null;
+}) {
   const { user } = useAuthUser();
   const [children, setChildren] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
@@ -47,10 +51,14 @@ export default function BlockingContent() {
     }
     const data: Array<{ id: number; name: string }> = await response.json();
     setChildren(data);
+    if (preferredChildId && data.some((child) => child.id === preferredChildId)) {
+      setSelectedChildId(preferredChildId);
+      return;
+    }
     if (!selectedChildId && data.length > 0) {
       setSelectedChildId(data[0].id);
     }
-  }, [selectedChildId, user?.id]);
+  }, [preferredChildId, selectedChildId, user?.id]);
 
   const loadBlocking = useCallback(async (childId: number) => {
     setLoading(true);
@@ -101,6 +109,12 @@ export default function BlockingContent() {
   useEffect(() => {
     void loadChildren();
   }, [loadChildren, user?.id]);
+
+  useEffect(() => {
+    if (!preferredChildId) return;
+    if (!children.some((child) => child.id === preferredChildId)) return;
+    setSelectedChildId(preferredChildId);
+  }, [children, preferredChildId]);
 
   useEffect(() => {
     if (selectedChildId && user?.id) {

@@ -60,7 +60,11 @@ const writeDraft = (parentId: number, childId: number, draft: TimeLimitsDraft) =
   }
 };
 
-export default function TimeLimitsContent() {
+export default function TimeLimitsContent({
+  preferredChildId = null,
+}: {
+  preferredChildId?: number | null;
+}) {
   const { user } = useAuthUser();
   const skipNextAutoSaveRef = useRef(true);
   const isSavingRef = useRef(false);
@@ -222,6 +226,10 @@ export default function TimeLimitsContent() {
         if (!response.ok) return;
         const data: Array<{ id: number; name: string }> = await response.json();
         setChildren(data);
+        if (preferredChildId && data.some((child) => child.id === preferredChildId)) {
+          setSelectedChildId(preferredChildId);
+          return;
+        }
         if (!selectedChildId && data.length > 0) {
           setSelectedChildId(data[0].id);
         }
@@ -231,7 +239,13 @@ export default function TimeLimitsContent() {
     };
 
     void loadChildren();
-  }, [user?.id, selectedChildId]);
+  }, [preferredChildId, selectedChildId, user?.id]);
+
+  useEffect(() => {
+    if (!preferredChildId) return;
+    if (!children.some((child) => child.id === preferredChildId)) return;
+    setSelectedChildId(preferredChildId);
+  }, [children, preferredChildId]);
 
   const loadLimitsFromServer = useCallback(
     async (options?: { isManualRefresh?: boolean; manualSuccessMessage?: string }) => {
