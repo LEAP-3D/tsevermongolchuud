@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = "https://parent-panel-backend.onrender.com/api";
 const PING_INTERVAL_MS = 1000; // Сервер рүү 1 сек тутам илгээж лимитийг хурдан мөрдөнө
 const TICK_INTERVAL_MS = 1000; // 1 сек тутам локалд хугацаа нэмэх
 const BLOCKED_PAGE_URL = chrome.runtime.getURL("blocked.html");
@@ -277,7 +277,11 @@ async function tick() {
   lastTickAt = now;
 
   const currentTab = await chrome.tabs.get(currentTabId).catch(() => null);
-  if (!currentTab || !currentTab.active || !currentTab.url?.startsWith("http")) {
+  if (
+    !currentTab ||
+    !currentTab.active ||
+    !currentTab.url?.startsWith("http")
+  ) {
     await stopTracking();
     return;
   }
@@ -299,7 +303,10 @@ async function tick() {
 
   const overrideActive = await isParentOverrideActive();
   if (!overrideActive) {
-    const livePolicy = await checkAccessForUrl(storage.activeChildId, currentUrl);
+    const livePolicy = await checkAccessForUrl(
+      storage.activeChildId,
+      currentUrl,
+    );
     if (livePolicy.action === "BLOCK") {
       await stopTracking();
       await rememberAndBlock(currentTabId, currentUrl, livePolicy);

@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:5000/api/auth";
+const API_BASE = "https://parent-panel-backend.onrender.com/api/auth";
 let remainingTimer = null;
 const popupStatusEl = document.getElementById("popup-status");
 
@@ -39,7 +39,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (!data.parentToken) {
     showView("parentLogin");
   } else if (data.activeChildId) {
-    document.getElementById("active-user-name").innerText = data.activeChildName;
+    document.getElementById("active-user-name").innerText =
+      data.activeChildName;
     showView("dashboard");
     startRemainingPolling(data.activeChildId);
   } else {
@@ -95,7 +96,8 @@ function renderChildList(children) {
     btn.innerText = child.name;
     btn.onclick = () => {
       selectedChildTemp = child;
-      document.getElementById("pin-title").innerText = `${child.name} - PIN code?`;
+      document.getElementById("pin-title").innerText =
+        `${child.name} - PIN code?`;
       document.getElementById("child-pin").value = "";
       showView("pinEntry");
     };
@@ -128,7 +130,8 @@ document.getElementById("btn-verify-pin").onclick = async () => {
         activeChildId: selectedChildTemp.id,
         activeChildName: selectedChildTemp.name,
       });
-      document.getElementById("active-user-name").innerText = selectedChildTemp.name;
+      document.getElementById("active-user-name").innerText =
+        selectedChildTemp.name;
       showView("dashboard");
       startRemainingPolling(selectedChildTemp.id);
       setGlobalStatus("");
@@ -148,12 +151,16 @@ document.getElementById("btn-verify-pin").onclick = async () => {
   }
 };
 
-document.getElementById("btn-back-select").onclick = () => showView("childSelect");
+document.getElementById("btn-back-select").onclick = () =>
+  showView("childSelect");
 
 async function resetDailyTimer() {
   const statusEl = document.getElementById("reset-status");
   const buttonEl = document.getElementById("btn-reset-timer");
-  const storage = await chrome.storage.local.get(["parentToken", "activeChildId"]);
+  const storage = await chrome.storage.local.get([
+    "parentToken",
+    "activeChildId",
+  ]);
 
   if (statusEl) statusEl.innerText = "";
   if (!storage.parentToken || !storage.activeChildId) {
@@ -167,7 +174,8 @@ async function resetDailyTimer() {
   const remainingPayload = await remainingRes.json().catch(() => ({}));
   const limitSeconds = Number(remainingPayload?.limitSeconds);
   if (!remainingRes.ok || !Number.isFinite(limitSeconds) || limitSeconds <= 0) {
-    if (statusEl) statusEl.innerText = "No daily limit is configured for this child.";
+    if (statusEl)
+      statusEl.innerText = "No daily limit is configured for this child.";
     return;
   }
 
@@ -241,14 +249,17 @@ document.getElementById("btn-reset-timer").onclick = () => {
   void resetDailyTimer();
 };
 
-document.getElementById("btn-p-logout").onclick = () => showView("logoutConfirm");
-document.getElementById("btn-cancel-logout").onclick = () => showView("childSelect");
+document.getElementById("btn-p-logout").onclick = () =>
+  showView("logoutConfirm");
+document.getElementById("btn-cancel-logout").onclick = () =>
+  showView("childSelect");
 
 document.getElementById("btn-confirm-logout").onclick = async () => {
   const buttonEl = document.getElementById("btn-confirm-logout");
   const password = document.getElementById("logout-pass").value;
   if (!password) {
-    document.getElementById("err-logout").innerText = "Please enter parent password.";
+    document.getElementById("err-logout").innerText =
+      "Please enter parent password.";
     return;
   }
   setButtonBusy(buttonEl, true, "Logging out...");
@@ -274,7 +285,9 @@ async function updateRemaining(childId) {
   const label = document.getElementById("daily-remaining");
   if (!label) return;
   try {
-    const res = await fetch(`${API_BASE}/daily-remaining?childId=${encodeURIComponent(String(childId))}`);
+    const res = await fetch(
+      `${API_BASE}/daily-remaining?childId=${encodeURIComponent(String(childId))}`,
+    );
     const data = await res.json();
     if (!res.ok || !data.success) {
       label.innerText = "Unavailable";
