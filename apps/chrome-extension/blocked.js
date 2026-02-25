@@ -1,5 +1,5 @@
-const API_BASE = "http://localhost:5000/api";
-const API_AUTH_BASE = "http://localhost:5000/api/auth";
+const API_BASE = "https://parent-panel-backend.onrender.com/api";
+const API_AUTH_BASE = "https://parent-panel-backend.onrender.com/api/auth";
 const OVERRIDE_MS = 15 * 60 * 1000;
 const POLICY_KEYS = [
   "lastBlockedUrl",
@@ -78,14 +78,16 @@ function applyBlockCopy(source, reason) {
   }
 
   if (reason === "TIME_LIMIT_EXCEEDED") {
-    explanationEl.textContent = "Time limit for this category has been reached.";
+    explanationEl.textContent =
+      "Time limit for this category has been reached.";
     noticeEl.textContent = "Please update limits from parent controls.";
     return;
   }
 
   if (reason === "BEDTIME_ACTIVE") {
     explanationEl.textContent = "Bedtime schedule is active right now.";
-    noticeEl.textContent = "Access will restore outside the configured bedtime window.";
+    noticeEl.textContent =
+      "Access will restore outside the configured bedtime window.";
     return;
   }
 
@@ -120,7 +122,9 @@ async function handleParentUnblock() {
     ]);
 
     if (!storage.parentToken) {
-      if (errorEl) errorEl.innerText = "Parent account is not logged in on this extension.";
+      if (errorEl)
+        errorEl.innerText =
+          "Parent account is not logged in on this extension.";
       setStatus("Parent session is missing.", "error");
       return;
     }
@@ -143,7 +147,9 @@ async function handleParentUnblock() {
     });
     const verifyData = await verifyResponse.json().catch(() => ({}));
     if (!verifyResponse.ok || !verifyData?.success) {
-      if (errorEl) errorEl.innerText = verifyData?.message || "Password verification failed.";
+      if (errorEl)
+        errorEl.innerText =
+          verifyData?.message || "Password verification failed.";
       setStatus("Parent verification failed.", "error");
       return;
     }
@@ -221,8 +227,10 @@ async function tryAutoRestore() {
     }
 
     await chrome.storage.local.set({
-      lastBlockReason: typeof data?.reason === "string" ? data.reason : "UNKNOWN",
-      lastBlockSource: typeof data?.source === "string" ? data.source : "SYSTEM",
+      lastBlockReason:
+        typeof data?.reason === "string" ? data.reason : "UNKNOWN",
+      lastBlockSource:
+        typeof data?.source === "string" ? data.source : "SYSTEM",
       lastPolicyUpdatedAt: Date.now(),
     });
     await refreshBlockMetaFromStorage();
