@@ -187,7 +187,7 @@ export default function DashboardBreakdown({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number | string) => formatDuration(Number(value))}
+                  formatter={(value) => formatDuration(Number(value ?? 0))}
                   contentStyle={{
                     background: '#fff',
                     border: '1px solid #e5e5e5',
