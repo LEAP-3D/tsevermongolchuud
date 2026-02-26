@@ -249,11 +249,12 @@ export default function DashboardBreakdown({
                     style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
                   />
                   <Tooltip
-                    formatter={(value: number | string | undefined, name: string, props) => {
+                    formatter={(value, name, props) => {
                       const minutes = formatMinutes(Number(value ?? 0));
-                      const visitsKey = `${name}Visits`;
+                      const label = name ?? "";
+                      const visitsKey = label ? `${label}Visits` : "";
                       const visits = Number(props?.payload?.[visitsKey] ?? 0);
-                      return [`${minutes} • ${visits}x`, name];
+                      return [`${minutes} • ${visits}x`, label];
                     }}
                     contentStyle={{
                       background: '#fff',
