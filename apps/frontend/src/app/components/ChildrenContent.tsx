@@ -22,12 +22,11 @@ export type ChildrenContentProps = {
   onJumpToSection: (tab: JumpTab, childId: number) => void;
 };
 
-const formatLimit = (seconds: number) => {
-  const safeSeconds = Math.max(0, Math.round(seconds));
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
-  const secs = safeSeconds % 60;
-  return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
+const formatLimit = (minutesValue: number) => {
+  const safeMinutes = Math.max(0, Math.round(minutesValue));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
 };
 
 export default function ChildrenContent({
@@ -90,10 +89,10 @@ export default function ChildrenContent({
         }
 
         const payload: { timeLimit?: { dailyLimit?: number } | null } = await response.json();
-        const dailyLimitSeconds = Number(payload?.timeLimit?.dailyLimit);
+        const dailyLimitMinutes = Number(payload?.timeLimit?.dailyLimit);
         if (!cancelled) {
-          if (Number.isFinite(dailyLimitSeconds) && dailyLimitSeconds > 0) {
-            setDailyLimitLabel(formatLimit(dailyLimitSeconds));
+          if (Number.isFinite(dailyLimitMinutes) && dailyLimitMinutes > 0) {
+            setDailyLimitLabel(formatLimit(dailyLimitMinutes));
           } else {
             setDailyLimitLabel('--');
           }

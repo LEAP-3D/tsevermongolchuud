@@ -501,6 +501,7 @@ export async function GET(req: Request) {
   );
 
   const riskCounts = { Safe: 0, Suspicious: 0, Dangerous: 0 };
+  const riskVisitCounts = { Safe: 0, Suspicious: 0, Dangerous: 0 };
   const riskWebsiteSeconds = new Map<
     string,
     { level: string; category: string; url: string; domain: string; safetyScore: number; seconds: number }
@@ -516,9 +517,12 @@ export async function GET(req: Request) {
     weightedSafetyNumerator += score * duration;
     totalExposureSeconds += duration;
 
-    if (score >= 80) {
+    const level = toRiskLevel(score);
+    riskVisitCounts[level] += 1;
+
+    if (level === "Safe") {
       riskCounts.Safe += duration;
-    } else if (score >= 50) {
+    } else if (level === "Suspicious") {
       riskCounts.Suspicious += duration;
     } else {
       riskCounts.Dangerous += duration;
@@ -526,7 +530,6 @@ export async function GET(req: Request) {
 
     const url = typeof entry.fullUrl === "string" ? entry.fullUrl : "";
     if (url) {
-      const level = toRiskLevel(score);
       const category = normalizeCategoryName(entry.categoryName);
       const domain = entry.domain || "-";
       const key = `${level}|${url}`;
@@ -561,9 +564,24 @@ export async function GET(req: Request) {
     suspiciousAlerts;
 
   const riskData = [
-    { level: "Safe", count: Math.round(secondsToMinutes(riskCounts.Safe)), color: "#34C759" },
-    { level: "Suspicious", count: Math.round(secondsToMinutes(riskCounts.Suspicious)), color: "#FF9500" },
-    { level: "Dangerous", count: Math.round(secondsToMinutes(riskCounts.Dangerous)), color: "#FF3B30" },
+    {
+      level: "Safe",
+      count: Math.round(secondsToMinutes(riskCounts.Safe)),
+      visits: riskVisitCounts.Safe,
+      color: "#34C759",
+    },
+    {
+      level: "Suspicious",
+      count: Math.round(secondsToMinutes(riskCounts.Suspicious)),
+      visits: riskVisitCounts.Suspicious,
+      color: "#FF9500",
+    },
+    {
+      level: "Dangerous",
+      count: Math.round(secondsToMinutes(riskCounts.Dangerous)),
+      visits: riskVisitCounts.Dangerous,
+      color: "#FF3B30",
+    },
   ];
 
   const safetyScore = Math.max(0, Math.min(100, Math.round(weightedAverageSafety - safetyPenalty)));

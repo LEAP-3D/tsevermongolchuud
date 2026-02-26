@@ -10,13 +10,13 @@ const isPrismaTableMissingError = (error: unknown) =>
   "code" in error &&
   (error as { code?: string }).code === TABLE_NOT_FOUND_CODE;
 
-const DEFAULT_TIME_LIMIT_SECONDS = {
-  dailyLimit: 240 * 60,
-  weekdayLimit: 180 * 60,
-  weekendLimit: 300 * 60,
-  sessionLimit: 60 * 60,
-  breakEvery: 45 * 60,
-  breakDuration: 10 * 60,
+const DEFAULT_TIME_LIMIT_MINUTES = {
+  dailyLimit: 240,
+  weekdayLimit: 180,
+  weekendLimit: 300,
+  sessionLimit: 60,
+  breakEvery: 45,
+  breakDuration: 10,
 } as const;
 const DEFAULT_BEDTIME_SCHEDULE = {
   schoolNightStartMinute: 21 * 60,
@@ -43,12 +43,12 @@ const TIME_LIMIT_DDL_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS "ChildTimeLimit" (
     "id" SERIAL PRIMARY KEY,
     "childId" INTEGER NOT NULL,
-    "dailyLimit" INTEGER NOT NULL DEFAULT 14400,
-    "weekdayLimit" INTEGER NOT NULL DEFAULT 10800,
-    "weekendLimit" INTEGER NOT NULL DEFAULT 18000,
-    "sessionLimit" INTEGER NOT NULL DEFAULT 3600,
-    "breakEvery" INTEGER NOT NULL DEFAULT 2700,
-    "breakDuration" INTEGER NOT NULL DEFAULT 600,
+    "dailyLimit" INTEGER NOT NULL DEFAULT 240,
+    "weekdayLimit" INTEGER NOT NULL DEFAULT 180,
+    "weekendLimit" INTEGER NOT NULL DEFAULT 300,
+    "sessionLimit" INTEGER NOT NULL DEFAULT 60,
+    "breakEvery" INTEGER NOT NULL DEFAULT 45,
+    "breakDuration" INTEGER NOT NULL DEFAULT 10,
     "focusMode" BOOLEAN NOT NULL DEFAULT false,
     "downtimeEnabled" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -154,15 +154,15 @@ const ensureTimeLimitTables = async () => {
   }
 };
 
-const toStoredSeconds = (value: unknown, fallbackSeconds: number) => {
+const toStoredMinutes = (value: unknown, fallbackMinutes: number) => {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackSeconds;
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackMinutes;
   return Math.max(1, Math.round(numeric));
 };
 
-const toSafeSeconds = (value: unknown, fallbackSeconds: number) => {
+const toSafeMinutes = (value: unknown, fallbackMinutes: number) => {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackSeconds;
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackMinutes;
   return Math.max(1, Math.round(numeric));
 };
 const toMinuteOfDay = (value: unknown, fallbackMinute: number) => {
@@ -181,34 +181,33 @@ const requireChild = async (childId: number, parentId: number) => {
   return child;
 };
 
-const isLikelyLegacyMinuteRow = (row: TimeLimitFields) =>
-  row.dailyLimit >= 30 &&
-  row.dailyLimit <= 720 &&
-  row.dailyLimit % 30 === 0 &&
-  row.weekdayLimit >= 30 &&
-  row.weekdayLimit <= 600 &&
-  row.weekdayLimit % 30 === 0 &&
-  row.weekendLimit >= 30 &&
-  row.weekendLimit <= 720 &&
-  row.weekendLimit % 30 === 0 &&
-  row.sessionLimit >= 15 &&
-  row.sessionLimit <= 180 &&
-  row.sessionLimit % 15 === 0 &&
-  row.breakEvery >= 15 &&
-  row.breakEvery <= 120 &&
-  row.breakEvery % 15 === 0 &&
-  row.breakDuration >= 5 &&
-  row.breakDuration <= 30 &&
-  row.breakDuration % 5 === 0;
+const isLikelyLegacySecondsRow = (row: TimeLimitFields) => {
+  const values = [
+    row.dailyLimit,
+    row.weekdayLimit,
+    row.weekendLimit,
+    row.sessionLimit,
+    row.breakEvery,
+    row.breakDuration,
+  ].map((value) => Number(value));
+
+  if (values.some((value) => !Number.isFinite(value))) return false;
+
+  const secondsLikeBreakEvery = row.breakEvery % 60 === 0 && row.breakEvery >= 60;
+  const secondsLikeBreakDuration = row.breakDuration % 60 === 0 && row.breakDuration >= 60;
+  const hasLargeValue = values.some((value) => value >= 600);
+
+  return secondsLikeBreakEvery && secondsLikeBreakDuration && hasLargeValue;
+};
 
 const normalizeTimeLimitRow = <TRow extends TimeLimitFields>(row: TRow): TRow => ({
   ...row,
-  dailyLimit: toSafeSeconds(row.dailyLimit, DEFAULT_TIME_LIMIT_SECONDS.dailyLimit),
-  weekdayLimit: toSafeSeconds(row.weekdayLimit, DEFAULT_TIME_LIMIT_SECONDS.weekdayLimit),
-  weekendLimit: toSafeSeconds(row.weekendLimit, DEFAULT_TIME_LIMIT_SECONDS.weekendLimit),
-  sessionLimit: toSafeSeconds(row.sessionLimit, DEFAULT_TIME_LIMIT_SECONDS.sessionLimit),
-  breakEvery: toSafeSeconds(row.breakEvery, DEFAULT_TIME_LIMIT_SECONDS.breakEvery),
-  breakDuration: toSafeSeconds(row.breakDuration, DEFAULT_TIME_LIMIT_SECONDS.breakDuration),
+  dailyLimit: toSafeMinutes(row.dailyLimit, DEFAULT_TIME_LIMIT_MINUTES.dailyLimit),
+  weekdayLimit: toSafeMinutes(row.weekdayLimit, DEFAULT_TIME_LIMIT_MINUTES.weekdayLimit),
+  weekendLimit: toSafeMinutes(row.weekendLimit, DEFAULT_TIME_LIMIT_MINUTES.weekendLimit),
+  sessionLimit: toSafeMinutes(row.sessionLimit, DEFAULT_TIME_LIMIT_MINUTES.sessionLimit),
+  breakEvery: toSafeMinutes(row.breakEvery, DEFAULT_TIME_LIMIT_MINUTES.breakEvery),
+  breakDuration: toSafeMinutes(row.breakDuration, DEFAULT_TIME_LIMIT_MINUTES.breakDuration),
 });
 const normalizeBedtimeSchedule = (
   row: Partial<BedtimeSchedule> | null | undefined,
@@ -362,28 +361,28 @@ export async function GET(req: Request) {
         update: {},
         create: {
           childId,
-          dailyLimit: DEFAULT_TIME_LIMIT_SECONDS.dailyLimit,
-          weekdayLimit: DEFAULT_TIME_LIMIT_SECONDS.weekdayLimit,
-          weekendLimit: DEFAULT_TIME_LIMIT_SECONDS.weekendLimit,
-          sessionLimit: DEFAULT_TIME_LIMIT_SECONDS.sessionLimit,
-          breakEvery: DEFAULT_TIME_LIMIT_SECONDS.breakEvery,
-          breakDuration: DEFAULT_TIME_LIMIT_SECONDS.breakDuration,
+          dailyLimit: DEFAULT_TIME_LIMIT_MINUTES.dailyLimit,
+          weekdayLimit: DEFAULT_TIME_LIMIT_MINUTES.weekdayLimit,
+          weekendLimit: DEFAULT_TIME_LIMIT_MINUTES.weekendLimit,
+          sessionLimit: DEFAULT_TIME_LIMIT_MINUTES.sessionLimit,
+          breakEvery: DEFAULT_TIME_LIMIT_MINUTES.breakEvery,
+          breakDuration: DEFAULT_TIME_LIMIT_MINUTES.breakDuration,
           focusMode: false,
           downtimeEnabled: true,
         },
       });
     }
 
-    if (timeLimit && isLikelyLegacyMinuteRow(timeLimit)) {
+    if (timeLimit && isLikelyLegacySecondsRow(timeLimit)) {
       timeLimit = await prisma.childTimeLimit.update({
         where: { childId },
         data: {
-          dailyLimit: timeLimit.dailyLimit * 60,
-          weekdayLimit: timeLimit.weekdayLimit * 60,
-          weekendLimit: timeLimit.weekendLimit * 60,
-          sessionLimit: timeLimit.sessionLimit * 60,
-          breakEvery: timeLimit.breakEvery * 60,
-          breakDuration: timeLimit.breakDuration * 60,
+          dailyLimit: Math.max(1, Math.round(timeLimit.dailyLimit / 60)),
+          weekdayLimit: Math.max(1, Math.round(timeLimit.weekdayLimit / 60)),
+          weekendLimit: Math.max(1, Math.round(timeLimit.weekendLimit / 60)),
+          sessionLimit: Math.max(1, Math.round(timeLimit.sessionLimit / 60)),
+          breakEvery: Math.max(1, Math.round(timeLimit.breakEvery / 60)),
+          breakDuration: Math.max(1, Math.round(timeLimit.breakDuration / 60)),
         },
       });
     }
@@ -494,46 +493,46 @@ export async function PUT(req: Request) {
         prisma.childTimeLimit.upsert({
           where: { childId },
           update: {
-            dailyLimit: toStoredSeconds(timeLimit.dailyLimit, DEFAULT_TIME_LIMIT_SECONDS.dailyLimit),
-            weekdayLimit: toStoredSeconds(
+            dailyLimit: toStoredMinutes(timeLimit.dailyLimit, DEFAULT_TIME_LIMIT_MINUTES.dailyLimit),
+            weekdayLimit: toStoredMinutes(
               timeLimit.weekdayLimit,
-              DEFAULT_TIME_LIMIT_SECONDS.weekdayLimit,
+              DEFAULT_TIME_LIMIT_MINUTES.weekdayLimit,
             ),
-            weekendLimit: toStoredSeconds(
+            weekendLimit: toStoredMinutes(
               timeLimit.weekendLimit,
-              DEFAULT_TIME_LIMIT_SECONDS.weekendLimit,
+              DEFAULT_TIME_LIMIT_MINUTES.weekendLimit,
             ),
-            sessionLimit: toStoredSeconds(
+            sessionLimit: toStoredMinutes(
               timeLimit.sessionLimit,
-              DEFAULT_TIME_LIMIT_SECONDS.sessionLimit,
+              DEFAULT_TIME_LIMIT_MINUTES.sessionLimit,
             ),
-            breakEvery: toStoredSeconds(timeLimit.breakEvery, DEFAULT_TIME_LIMIT_SECONDS.breakEvery),
-            breakDuration: toStoredSeconds(
+            breakEvery: toStoredMinutes(timeLimit.breakEvery, DEFAULT_TIME_LIMIT_MINUTES.breakEvery),
+            breakDuration: toStoredMinutes(
               timeLimit.breakDuration,
-              DEFAULT_TIME_LIMIT_SECONDS.breakDuration,
+              DEFAULT_TIME_LIMIT_MINUTES.breakDuration,
             ),
             focusMode: Boolean(timeLimit.focusMode ?? false),
             downtimeEnabled: Boolean(timeLimit.downtimeEnabled ?? true),
           },
           create: {
             childId,
-            dailyLimit: toStoredSeconds(timeLimit.dailyLimit, DEFAULT_TIME_LIMIT_SECONDS.dailyLimit),
-            weekdayLimit: toStoredSeconds(
+            dailyLimit: toStoredMinutes(timeLimit.dailyLimit, DEFAULT_TIME_LIMIT_MINUTES.dailyLimit),
+            weekdayLimit: toStoredMinutes(
               timeLimit.weekdayLimit,
-              DEFAULT_TIME_LIMIT_SECONDS.weekdayLimit,
+              DEFAULT_TIME_LIMIT_MINUTES.weekdayLimit,
             ),
-            weekendLimit: toStoredSeconds(
+            weekendLimit: toStoredMinutes(
               timeLimit.weekendLimit,
-              DEFAULT_TIME_LIMIT_SECONDS.weekendLimit,
+              DEFAULT_TIME_LIMIT_MINUTES.weekendLimit,
             ),
-            sessionLimit: toStoredSeconds(
+            sessionLimit: toStoredMinutes(
               timeLimit.sessionLimit,
-              DEFAULT_TIME_LIMIT_SECONDS.sessionLimit,
+              DEFAULT_TIME_LIMIT_MINUTES.sessionLimit,
             ),
-            breakEvery: toStoredSeconds(timeLimit.breakEvery, DEFAULT_TIME_LIMIT_SECONDS.breakEvery),
-            breakDuration: toStoredSeconds(
+            breakEvery: toStoredMinutes(timeLimit.breakEvery, DEFAULT_TIME_LIMIT_MINUTES.breakEvery),
+            breakDuration: toStoredMinutes(
               timeLimit.breakDuration,
-              DEFAULT_TIME_LIMIT_SECONDS.breakDuration,
+              DEFAULT_TIME_LIMIT_MINUTES.breakDuration,
             ),
             focusMode: Boolean(timeLimit.focusMode ?? false),
             downtimeEnabled: Boolean(timeLimit.downtimeEnabled ?? true),

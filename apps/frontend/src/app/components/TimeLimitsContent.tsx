@@ -28,6 +28,7 @@ type TimeLimitsDraft = {
 
 const getDraftKey = (parentId: number, childId: number) => `timelimits:draft:${parentId}:${childId}`;
 const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const DRAFT_VERSION = 2;
 const DEFAULT_BEDTIME_SCHEDULE = {
   schoolNightStartMinute: 21 * 60,
   schoolNightEndMinute: 7 * 60,
@@ -40,11 +41,11 @@ const readDraft = (parentId: number, childId: number): TimeLimitsDraft | null =>
   try {
     const raw = window.localStorage.getItem(getDraftKey(parentId, childId));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as TimeLimitsDraft & { updatedAt?: number };
+    const parsed = JSON.parse(raw) as TimeLimitsDraft & { updatedAt?: number; version?: number };
     const updatedAt = Number(parsed.updatedAt);
 
     // Invalidate legacy drafts (no timestamp) and very old drafts to prevent stale values.
-    if (!Number.isFinite(updatedAt) || Date.now() - updatedAt > DRAFT_MAX_AGE_MS) {
+    if (!Number.isFinite(updatedAt) || parsed.version !== DRAFT_VERSION || Date.now() - updatedAt > DRAFT_MAX_AGE_MS) {
       window.localStorage.removeItem(getDraftKey(parentId, childId));
       return null;
     }
@@ -64,6 +65,7 @@ const writeDraft = (parentId: number, childId: number, draft: TimeLimitsDraft) =
       JSON.stringify({
         ...draft,
         updatedAt: Date.now(),
+        version: DRAFT_VERSION,
       })
     );
   } catch {
@@ -80,9 +82,9 @@ export default function TimeLimitsContent({
   const skipNextAutoSaveRef = useRef(true);
   const isSavingRef = useRef(false);
   const extensionAutoPromptedChildRef = useRef<number | null>(null);
-  const [dailyLimit, setDailyLimit] = useState(240 * 60);
-  const [weekdayLimit, setWeekdayLimit] = useState(180 * 60);
-  const [weekendLimit, setWeekendLimit] = useState(300 * 60);
+  const [dailyLimit, setDailyLimit] = useState(240);
+  const [weekdayLimit, setWeekdayLimit] = useState(180);
+  const [weekendLimit, setWeekendLimit] = useState(300);
   const [schoolNightStartMinute, setSchoolNightStartMinute] = useState(
     DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute,
   );
@@ -95,9 +97,9 @@ export default function TimeLimitsContent({
   const [weekendEndMinute, setWeekendEndMinute] = useState(
     DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute,
   );
-  const [sessionLimit, setSessionLimit] = useState(60 * 60);
-  const [breakEvery, setBreakEvery] = useState(45 * 60);
-  const [breakDuration, setBreakDuration] = useState(10 * 60);
+  const [sessionLimit, setSessionLimit] = useState(60);
+  const [breakEvery, setBreakEvery] = useState(45);
+  const [breakDuration, setBreakDuration] = useState(10);
   const [focusMode, setFocusMode] = useState(false);
   const [downtimeEnabled, setDowntimeEnabled] = useState(true);
 
@@ -109,19 +111,19 @@ export default function TimeLimitsContent({
     return `${hrs}h ${mins}m`;
   };
 
-  const formatDuration = (seconds: number) => {
-    const totalMinutes = Math.max(0, Math.round(seconds / 60));
-    const hrs = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
+  const formatDuration = (minutesValue: number) => {
+    const safeMinutes = Math.max(0, Math.round(minutesValue));
+    const hrs = Math.floor(safeMinutes / 60);
+    const mins = safeMinutes % 60;
     if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
     if (hrs > 0) return `${hrs}h`;
     return `${mins}m`;
   };
 
-  const formatDurationFull = (seconds: number) => {
-    const totalMinutes = Math.max(0, Math.round(seconds / 60));
-    const hrs = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
+  const formatDurationFull = (minutesValue: number) => {
+    const safeMinutes = Math.max(0, Math.round(minutesValue));
+    const hrs = Math.floor(safeMinutes / 60);
+    const mins = safeMinutes % 60;
     return `${hrs}h ${mins}m`;
   };
 
@@ -162,19 +164,19 @@ export default function TimeLimitsContent({
   const [showInstallExtension, setShowInstallExtension] = useState(false);
   const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>('not-installed');
 
-  const toHourMinute = (seconds: number) => {
-    const safeMinutes = Math.max(0, Math.round(seconds / 60));
+  const toHourMinute = (minutesValue: number) => {
+    const safeMinutes = Math.max(0, Math.round(minutesValue));
     return {
       hours: Math.floor(safeMinutes / 60),
       minutes: safeMinutes % 60,
     };
   };
 
-  const toSecondsWithoutSecondsInput = (hours: number, minutes: number) => {
+  const toMinutesWithoutSecondsInput = (hours: number, minutes: number) => {
     const safeHours = Number.isFinite(hours) ? Math.max(0, Math.floor(hours)) : 0;
     const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.min(59, Math.floor(minutes))) : 0;
-    const totalSeconds = (safeHours * 60 + safeMinutes) * 60;
-    return Math.max(60, totalSeconds);
+    const totalMinutes = safeHours * 60 + safeMinutes;
+    return Math.max(1, totalMinutes);
   };
 
   const dailyParts = toHourMinute(dailyLimit);
@@ -185,21 +187,21 @@ export default function TimeLimitsContent({
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
     const nextHours = part === 'hours' ? safeValue : dailyParts.hours;
     const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : dailyParts.minutes;
-    setDailyLimit(toSecondsWithoutSecondsInput(nextHours, nextMinutes));
+    setDailyLimit(toMinutesWithoutSecondsInput(nextHours, nextMinutes));
   };
 
   const updateWeekdayLimitPart = (part: 'hours' | 'minutes', value: number) => {
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
     const nextHours = part === 'hours' ? safeValue : weekdayParts.hours;
     const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : weekdayParts.minutes;
-    setWeekdayLimit(toSecondsWithoutSecondsInput(nextHours, nextMinutes));
+    setWeekdayLimit(toMinutesWithoutSecondsInput(nextHours, nextMinutes));
   };
 
   const updateWeekendLimitPart = (part: 'hours' | 'minutes', value: number) => {
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
     const nextHours = part === 'hours' ? safeValue : weekendParts.hours;
     const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : weekendParts.minutes;
-    setWeekendLimit(toSecondsWithoutSecondsInput(nextHours, nextMinutes));
+    setWeekendLimit(toMinutesWithoutSecondsInput(nextHours, nextMinutes));
   };
 
   const updateCategoryLimitPart = (id: number, part: 'hours' | 'minutes', value: number) => {
@@ -280,9 +282,9 @@ export default function TimeLimitsContent({
       return;
     }
     skipNextAutoSaveRef.current = true;
-    setDailyLimit(Number(draft.dailyLimit) || 1);
-    setWeekdayLimit(Number(draft.weekdayLimit) || 180 * 60);
-    setWeekendLimit(Number(draft.weekendLimit) || 300 * 60);
+    setDailyLimit(Number(draft.dailyLimit) || 240);
+    setWeekdayLimit(Number(draft.weekdayLimit) || 180);
+    setWeekendLimit(Number(draft.weekendLimit) || 300);
     setSchoolNightStartMinute(
       Number.isFinite(Number(draft.schoolNightStartMinute))
         ? Math.max(0, Math.min(1439, Math.round(Number(draft.schoolNightStartMinute))))
@@ -303,9 +305,9 @@ export default function TimeLimitsContent({
         ? Math.max(0, Math.min(1439, Math.round(Number(draft.weekendEndMinute))))
         : DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute,
     );
-    setSessionLimit(Number(draft.sessionLimit) || 60 * 60);
-    setBreakEvery(Number(draft.breakEvery) || 45 * 60);
-    setBreakDuration(Number(draft.breakDuration) || 10 * 60);
+    setSessionLimit(Number(draft.sessionLimit) || 60);
+    setBreakEvery(Number(draft.breakEvery) || 45);
+    setBreakDuration(Number(draft.breakDuration) || 10);
     setFocusMode(Boolean(draft.focusMode));
     setDowntimeEnabled(Boolean(draft.downtimeEnabled));
     setAppLimits(Array.isArray(draft.appLimits) && draft.appLimits.length > 0 ? draft.appLimits : defaultAppLimits);
@@ -414,12 +416,12 @@ export default function TimeLimitsContent({
 
         const limit = payload.timeLimit;
         if (limit) {
-          setDailyLimit(limit.dailyLimit ?? 240 * 60);
-          setWeekdayLimit(limit.weekdayLimit ?? 180 * 60);
-          setWeekendLimit(limit.weekendLimit ?? 300 * 60);
-          setSessionLimit(limit.sessionLimit ?? 60 * 60);
-          setBreakEvery(limit.breakEvery ?? 45 * 60);
-          setBreakDuration(limit.breakDuration ?? 10 * 60);
+          setDailyLimit(limit.dailyLimit ?? 240);
+          setWeekdayLimit(limit.weekdayLimit ?? 180);
+          setWeekendLimit(limit.weekendLimit ?? 300);
+          setSessionLimit(limit.sessionLimit ?? 60);
+          setBreakEvery(limit.breakEvery ?? 45);
+          setBreakDuration(limit.breakDuration ?? 10);
           setFocusMode(Boolean(limit.focusMode));
           setDowntimeEnabled(Boolean(limit.downtimeEnabled));
         }
@@ -466,16 +468,16 @@ export default function TimeLimitsContent({
           if (user?.id && selectedChildId && typeof window !== 'undefined') {
             window.localStorage.removeItem(getDraftKey(user.id, selectedChildId));
           }
-          setDailyLimit(240 * 60);
-          setWeekdayLimit(180 * 60);
-          setWeekendLimit(300 * 60);
+          setDailyLimit(240);
+          setWeekdayLimit(180);
+          setWeekendLimit(300);
           setSchoolNightStartMinute(DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute);
           setSchoolNightEndMinute(DEFAULT_BEDTIME_SCHEDULE.schoolNightEndMinute);
           setWeekendStartMinute(DEFAULT_BEDTIME_SCHEDULE.weekendStartMinute);
           setWeekendEndMinute(DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute);
-          setSessionLimit(60 * 60);
-          setBreakEvery(45 * 60);
-          setBreakDuration(10 * 60);
+          setSessionLimit(60);
+          setBreakEvery(45);
+          setBreakDuration(10);
           setFocusMode(false);
           setDowntimeEnabled(true);
           setAppLimits(defaultAppLimits);
@@ -1045,7 +1047,7 @@ export default function TimeLimitsContent({
               <li>Enable <strong>Developer mode</strong></li>
               <li>
                 Click <strong>Load unpacked</strong> and select{" "}
-                <code>/Users/25LP6386/Desktop/tsevermongolchuud/apps/chrome-extension</code>
+                <code>/Users/25LP5321/Desktop/safe-kid/extantion/extension-tustai/chrome-extension</code>
               </li>
             </ol>
           </div>
