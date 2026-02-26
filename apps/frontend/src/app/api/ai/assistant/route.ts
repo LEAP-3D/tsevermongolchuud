@@ -33,9 +33,9 @@ const isPrismaTableMissingError = (error: unknown) =>
 const toSafeDomain = (value: string) =>
   value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
 
-const toSafeSeconds = (value: unknown, fallbackSeconds: number) => {
+const toSafeMinutes = (value: unknown, fallbackMinutes: number) => {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackSeconds;
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackMinutes;
   return Math.max(1, Math.round(numeric));
 };
 
@@ -137,10 +137,10 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
     const usageMinutes = usageByChild.get(child.id) ?? 0;
     const blocked = blockedByChild.get(child.id) ?? 0;
     const limits = limitByChild.get(child.id);
-    const dailySeconds = toSafeSeconds(limits?.dailyLimit, 240 * 60);
-    const sessionSeconds = toSafeSeconds(limits?.sessionLimit, 60 * 60);
-    const daily = Math.round(dailySeconds / 60);
-    const session = Math.round(sessionSeconds / 60);
+    const dailyMinutes = toSafeMinutes(limits?.dailyLimit, 240);
+    const sessionMinutes = toSafeMinutes(limits?.sessionLimit, 60);
+    const daily = Math.round(dailyMinutes);
+    const session = Math.round(sessionMinutes);
     return `${child.name} (id:${child.id}): recent usage ${usageMinutes}m, blocked events ${blocked}, daily limit ${daily}m, session limit ${session}m`;
   });
 
@@ -308,12 +308,12 @@ const executeActions = async (
       try {
         const existing = await prisma.childTimeLimit.findUnique({ where: { childId } });
         const base = {
-          dailyLimit: toSafeSeconds(existing?.dailyLimit, 240 * 60),
-          weekdayLimit: toSafeSeconds(existing?.weekdayLimit, 180 * 60),
-          weekendLimit: toSafeSeconds(existing?.weekendLimit, 300 * 60),
-          sessionLimit: toSafeSeconds(existing?.sessionLimit, 60 * 60),
-          breakEvery: toSafeSeconds(existing?.breakEvery, 45 * 60),
-          breakDuration: toSafeSeconds(existing?.breakDuration, 10 * 60),
+          dailyLimit: toSafeMinutes(existing?.dailyLimit, 240),
+          weekdayLimit: toSafeMinutes(existing?.weekdayLimit, 180),
+          weekendLimit: toSafeMinutes(existing?.weekendLimit, 300),
+          sessionLimit: toSafeMinutes(existing?.sessionLimit, 60),
+          breakEvery: toSafeMinutes(existing?.breakEvery, 45),
+          breakDuration: toSafeMinutes(existing?.breakDuration, 10),
           focusMode: existing?.focusMode ?? false,
           downtimeEnabled: existing?.downtimeEnabled ?? true,
         };
@@ -322,12 +322,12 @@ const executeActions = async (
           where: { childId },
           update:
             action.type === "SET_DAILY_LIMIT"
-              ? { dailyLimit: Math.round(minutes * 60) }
-              : { sessionLimit: Math.round(minutes * 60) },
+              ? { dailyLimit: Math.round(minutes) }
+              : { sessionLimit: Math.round(minutes) },
           create:
             action.type === "SET_DAILY_LIMIT"
-              ? { childId, ...base, dailyLimit: Math.round(minutes * 60) }
-              : { childId, ...base, sessionLimit: Math.round(minutes * 60) },
+              ? { childId, ...base, dailyLimit: Math.round(minutes) }
+              : { childId, ...base, sessionLimit: Math.round(minutes) },
         });
       } catch (error) {
         if (isPrismaTableMissingError(error)) {

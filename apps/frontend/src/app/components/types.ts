@@ -10,7 +10,7 @@ export type UsageSite = {
 
 export type UsagePoint = { day: string; minutes: number; sites?: UsageSite[] };
 export type CategorySlice = { name: string; value: number; color: string };
-export type RiskPoint = { level: string; count: number; color: string };
+export type RiskPoint = { level: string; count: number; visits: number; color: string };
 export type CategoryWebsiteDetail = {
   category: string;
   url: string;

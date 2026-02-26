@@ -36,13 +36,20 @@ export default function DashboardBreakdown({
   }, [categoryData]);
 
   const riskSummary = useMemo(() => {
-    const total = riskData.reduce((acc, item) => acc + item.count, 0);
+    const totalMinutes = riskData.reduce((acc, item) => acc + item.count, 0);
+    const totalVisits = riskData.reduce((acc, item) => acc + (item.visits ?? 0), 0);
     const top = riskData.reduce(
       (max, item) => (item.count > max.count ? item : max),
-      riskData[0] ?? { level: '-', count: 0, color: '#000' }
+      riskData[0] ?? { level: '-', count: 0, visits: 0, color: '#000' }
     );
 
-    return { total, topLevel: top.level, topCount: top.count };
+    return {
+      totalMinutes,
+      totalVisits,
+      topLevel: top.level,
+      topCount: top.count,
+      topVisits: top.visits ?? 0,
+    };
   }, [riskData]);
 
   const formatMinutes = (minutesValue: number) => {
@@ -133,17 +140,23 @@ export default function DashboardBreakdown({
   }, [riskWebsiteDetails]);
 
   const riskBarData = useMemo(() => {
-    const valuesByLevel = riskData.reduce<Record<string, number>>((acc, item) => {
-      acc[item.level] = item.count;
+    const valuesByLevel = riskData.reduce<Record<string, { minutes: number; visits: number }>>((acc, item) => {
+      acc[item.level] = {
+        minutes: item.count,
+        visits: item.visits ?? 0,
+      };
       return acc;
     }, {});
 
     return [
       {
         label: "Risk",
-        Safe: valuesByLevel.Safe ?? 0,
-        Suspicious: valuesByLevel.Suspicious ?? 0,
-        Dangerous: valuesByLevel.Dangerous ?? 0,
+        Safe: valuesByLevel.Safe?.minutes ?? 0,
+        Suspicious: valuesByLevel.Suspicious?.minutes ?? 0,
+        Dangerous: valuesByLevel.Dangerous?.minutes ?? 0,
+        SafeVisits: valuesByLevel.Safe?.visits ?? 0,
+        SuspiciousVisits: valuesByLevel.Suspicious?.visits ?? 0,
+        DangerousVisits: valuesByLevel.Dangerous?.visits ?? 0,
       },
     ];
   }, [riskData]);
@@ -174,6 +187,7 @@ export default function DashboardBreakdown({
                   ))}
                 </Pie>
                 <Tooltip
+                  formatter={(value) => formatDuration(Number(value ?? 0))}
                   contentStyle={{
                     background: '#fff',
                     border: '1px solid #e5e5e5',
@@ -235,7 +249,13 @@ export default function DashboardBreakdown({
                     style={{ fontSize: '13px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
                   />
                   <Tooltip
-                    formatter={(value: number | string | undefined) => formatMinutes(Number(value ?? 0))}
+                    formatter={(value, name, props) => {
+                      const minutes = formatMinutes(Number(value ?? 0));
+                      const label = name ?? "";
+                      const visitsKey = label ? `${label}Visits` : "";
+                      const visits = Number(props?.payload?.[visitsKey] ?? 0);
+                      return [`${minutes} • ${visits}x`, label];
+                    }}
                     contentStyle={{
                       background: '#fff',
                       border: '1px solid #e5e5e5',
@@ -257,12 +277,16 @@ export default function DashboardBreakdown({
                 { level: "Suspicious", color: "#FF9500" },
                 { level: "Dangerous", color: "#FF3B30" },
               ].map((item) => {
-                const value = riskData.find((entry) => entry.level === item.level)?.count ?? 0;
+                const point = riskData.find((entry) => entry.level === item.level);
+                const minutes = point?.count ?? 0;
+                const visits = point?.visits ?? 0;
                 return (
                   <div key={item.level} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-600">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
                     <span className="font-medium">{item.level}</span>
-                    <span>{formatMinutes(value)}</span>
+                    <span>{formatMinutes(minutes)}</span>
+                    <span className="text-gray-400">•</span>
+                    <span>{visits}x</span>
                   </div>
                 );
               })}
@@ -388,7 +412,8 @@ export default function DashboardBreakdown({
             <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 <p className="text-xs text-gray-500 mb-1">Total Exposure</p>
-                <p className="text-2xl font-semibold text-gray-900">{formatMinutes(riskSummary.total)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatMinutes(riskSummary.totalMinutes)}</p>
+                <p className="text-xs text-gray-500 mt-1">Visits: {riskSummary.totalVisits}</p>
               </div>
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 <p className="text-xs text-gray-500 mb-1">Highest Level</p>
@@ -397,6 +422,7 @@ export default function DashboardBreakdown({
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 <p className="text-xs text-gray-500 mb-1">Highest Exposure</p>
                 <p className="text-2xl font-semibold text-gray-900">{formatMinutes(riskSummary.topCount)}</p>
+                <p className="text-xs text-gray-500 mt-1">Visits: {riskSummary.topVisits}</p>
               </div>
             </div>
 

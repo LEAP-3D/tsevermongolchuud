@@ -2,14 +2,14 @@
   "name": "tsevermongolchuud",
   "private": true,
   "scripts": {
-    "setup": "npm install && npm --prefix apps/backend install && npm --prefix apps/frontend install && npm run db:generate",
+    "setup": "npm install && npm --prefix apps/frontend install && npm run db:generate",
     "setup:with-db": "npm run setup && npm run db:push",
     "lint": "npm --prefix apps/frontend run lint",
     "build": "npm --prefix apps/frontend run build",
-    "db:generate": "prisma generate --schema prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
-    "db:push": "prisma db push --schema prisma/schema.prisma",
-    "db:studio": "prisma studio --schema prisma/schema.prisma"
+    "db:generate": "npm --prefix apps/frontend run db:generate",
+    "db:migrate": "npm --prefix apps/frontend run db:migrate",
+    "db:push": "npm --prefix apps/frontend run db:push",
+    "db:studio": "npm --prefix apps/frontend run db:studio"
   },
   "devDependencies": {
     "prisma": "^6.19.2"
