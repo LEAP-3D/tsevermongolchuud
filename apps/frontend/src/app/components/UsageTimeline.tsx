@@ -38,14 +38,21 @@ export default function UsageTimeline({
     [usageData],
   );
 
-  const formatHHMM = (minutesValue: number) => {
-    const totalMinutes = Math.max(0, Math.round(minutesValue));
-    const hh = Math.floor(totalMinutes / 60);
-    const mm = totalMinutes % 60;
-    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  const formatMinutes = (minutesValue: number) => {
+    const safe = Number(minutesValue);
+    if (!Number.isFinite(safe) || safe <= 0) return "0 minutes";
+    const rounded = Math.round(safe * 10) / 10;
+    return Number.isInteger(rounded)
+      ? `${rounded} minutes`
+      : `${rounded.toFixed(1)} minutes`;
   };
 
-  const formatAxisTick = (minutesValue: number) => formatHHMM(minutesValue);
+  const formatAxisTick = (minutesValue: number) => {
+    const hours = Number(minutesValue) / 60;
+    if (!Number.isFinite(hours) || hours <= 0) return "0h";
+    const rounded = Math.round(hours * 10) / 10;
+    return Number.isInteger(rounded) ? `${rounded}h` : `${rounded.toFixed(1)}h`;
+  };
 
   const getSafeHref = (rawUrl: string) => {
     try {
@@ -129,9 +136,7 @@ export default function UsageTimeline({
       ? "today"
       : timeFilter === "7d"
         ? "last 7 days"
-        : timeFilter === "30d"
-          ? "last 30 days"
-          : "all-time";
+        : "last 30 days";
 
   const summary = useMemo(() => {
     const total = timelineData.reduce((acc, point) => acc + point.minutes, 0);
@@ -172,12 +177,6 @@ export default function UsageTimeline({
     return timelineData[timelineData.length - 1] ?? null;
   }, [hoveredDay, selectedDay, timelineData]);
 
-  const xAxisInterval = useMemo(() => {
-    if (timeFilter !== "all") return "preserveStartEnd";
-    if (timelineData.length <= 12) return 0;
-    return Math.ceil(timelineData.length / 12) - 1;
-  }, [timeFilter, timelineData.length]);
-
   const renderUsageTooltip = ({
     active,
     payload,
@@ -189,8 +188,8 @@ export default function UsageTimeline({
     const value = Number(payload[0]?.value ?? 0);
     return (
       <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm">
-        <span className="font-semibold">Hours: </span>
-        {formatHHMM(value)}
+        <span className="font-semibold">Time: </span>
+        {formatMinutes(value)}
       </div>
     );
   };
@@ -233,7 +232,7 @@ export default function UsageTimeline({
                 stroke="#8E8E93"
                 axisLine={false}
                 tickLine={false}
-                interval={xAxisInterval}
+                interval="preserveStartEnd"
                 minTickGap={18}
                 style={{
                   fontSize: "13px",
@@ -271,7 +270,7 @@ export default function UsageTimeline({
         <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-xs font-semibold text-gray-600">
-            {activePoint ? `${activePoint.day} | Hours: ${formatHHMM(activePoint.minutes)}` : "Hover a point"}
+            {activePoint ? `${activePoint.day} | Time: ${formatMinutes(activePoint.minutes)}` : "Hover a point"}
             </div>
             {selectedDay ? (
               <button
@@ -320,7 +319,7 @@ export default function UsageTimeline({
                         </div>
                       </div>
                       <div className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                        {formatHHMM(site.minutes)}
+                        {formatMinutes(site.minutes)}
                       </div>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
@@ -377,16 +376,16 @@ export default function UsageTimeline({
             <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 <p className="text-xs text-gray-500 mb-1">Total Usage</p>
-                <p className="text-2xl font-semibold text-gray-900">Hours: {formatHHMM(summary.total)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatMinutes(summary.total)}</p>
               </div>
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 <p className="text-xs text-gray-500 mb-1">Daily Average</p>
-                <p className="text-2xl font-semibold text-gray-900">Hours: {formatHHMM(summary.avg)}</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatMinutes(summary.avg)}</p>
               </div>
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 <p className="text-xs text-gray-500 mb-1">Peak Day</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {summary.peakDay} | Hours: {formatHHMM(summary.peakMinutes)}
+                  {summary.peakDay} | {formatMinutes(summary.peakMinutes)}
                 </p>
               </div>
             </div>
@@ -405,7 +404,7 @@ export default function UsageTimeline({
                       className="grid grid-cols-3 gap-0 px-4 py-3 text-sm text-gray-700"
                     >
                       <div className="font-medium text-gray-900">{point.day}</div>
-                      <div>Hours: {formatHHMM(point.minutes)}</div>
+                      <div>{formatMinutes(point.minutes)}</div>
                       <div>
                         {point.minutes >= summary.avg ? (
                           <span className="text-green-600 font-medium">Above Avg</span>
