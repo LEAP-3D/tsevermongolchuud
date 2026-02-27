@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ban, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { useAuthUser } from '@/lib/auth';
+import { withApiBase } from "@/lib/apiBase";
 
 type BlockingCategory = {
   id: number;
@@ -45,7 +46,10 @@ export default function BlockingContent({
       setChildren([]);
       return;
     }
-    const response = await fetch(`/api/child?parentId=${encodeURIComponent(String(user.id))}`);
+    const response = await fetch(
+      withApiBase(`/api/child?parentId=${encodeURIComponent(String(user.id))}`),
+      { credentials: "include" },
+    );
     if (!response.ok) {
       return;
     }
@@ -65,7 +69,8 @@ export default function BlockingContent({
     setError('');
     try {
       const response = await fetch(
-        `/api/blocking?childId=${childId}&parentId=${encodeURIComponent(String(user?.id ?? ""))}`
+        withApiBase(`/api/blocking?childId=${childId}&parentId=${encodeURIComponent(String(user?.id ?? ""))}`),
+        { credentials: "include" },
       );
       if (!response.ok) {
         let message = 'Failed to load blocking.';
@@ -154,9 +159,10 @@ export default function BlockingContent({
       )
     );
 
-    const response = await fetch('/api/blocking', {
+    const response = await fetch(withApiBase('/api/blocking'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: "include",
       body: JSON.stringify({
         childId: selectedChildId,
         categoryId: id,
@@ -176,9 +182,10 @@ export default function BlockingContent({
     if (customBlocks.some((item) => item.domain === trimmed)) return;
     setSiteInput('');
     setUpdating(true);
-    const response = await fetch('/api/blocking', {
+    const response = await fetch(withApiBase('/api/blocking'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: "include",
       body: JSON.stringify({
         childId: selectedChildId,
         parentId: user?.id,
@@ -199,9 +206,10 @@ export default function BlockingContent({
   const removeCustomBlock = async (domain: string) => {
     if (!selectedChildId) return;
     setUpdating(true);
-    const response = await fetch('/api/blocking', {
+    const response = await fetch(withApiBase('/api/blocking'), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
+      credentials: "include",
       body: JSON.stringify({
         childId: selectedChildId,
         parentId: user?.id,
@@ -220,9 +228,10 @@ export default function BlockingContent({
   const removeSelectedSites = async () => {
     if (!selectedChildId || selectedSites.length === 0) return;
     setUpdating(true);
-    const response = await fetch('/api/blocking', {
+    const response = await fetch(withApiBase('/api/blocking'), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
+      credentials: "include",
       body: JSON.stringify({
         childId: selectedChildId,
         parentId: user?.id,

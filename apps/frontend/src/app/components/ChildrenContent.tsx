@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Copy, Plus, X } from 'lucide-react';
 import type { Child } from './types';
 import AddChildModal from './AddChildModal';
+import { withApiBase } from "@/lib/apiBase";
 
 type JumpTab = 'dashboard' | 'time-limits' | 'blocking' | 'settings';
 
@@ -73,10 +74,13 @@ export default function ChildrenContent({
       setDailyLimitLoading(true);
       setDailyLimitError('');
       try {
-        const response = await fetch(`/api/timelimits?childId=${selectedChildId}`, {
-          cache: 'no-store',
-          credentials: 'include',
-        });
+        const response = await fetch(
+          withApiBase(`/api/timelimits?childId=${selectedChildId}`),
+          {
+            cache: 'no-store',
+            credentials: 'include',
+          },
+        );
         if (!response.ok) {
           let message = 'Failed to load daily limit.';
           try {
@@ -141,9 +145,10 @@ export default function ChildrenContent({
     setRenameSaving(true);
     setRenameError('');
     try {
-      const response = await fetch('/api/child', {
+      const response = await fetch(withApiBase('/api/child'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: "include",
         body: JSON.stringify({ id: selectedChild.id, name: trimmedName }),
       });
       if (!response.ok) {

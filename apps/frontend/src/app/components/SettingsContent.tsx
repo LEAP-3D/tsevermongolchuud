@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import type { Child } from "./types";
+import { withApiBase } from "@/lib/apiBase";
 import { clearStoredUser, useAuthUser } from "@/lib/auth";
 
 export default function SettingsContent({
@@ -38,7 +39,8 @@ export default function SettingsContent({
     try {
       const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       const response = await fetch(
-        `/api/child?parentId=${encodeURIComponent(String(user.id))}&timeZone=${encodeURIComponent(localTimeZone)}`,
+        withApiBase(`/api/child?parentId=${encodeURIComponent(String(user.id))}&timeZone=${encodeURIComponent(localTimeZone)}`),
+      { credentials: "include" },
       );
       if (!response.ok) {
         let message = "Failed to load children.";
@@ -100,9 +102,10 @@ export default function SettingsContent({
     setDeletingId(childId);
     setChildrenError("");
     try {
-      const response = await fetch("/api/child", {
+      const response = await fetch(withApiBase("/api/child"), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ id: childId }),
       });
       if (!response.ok) {
@@ -301,7 +304,7 @@ export default function SettingsContent({
         <button
           onClick={async () => {
             try {
-              await fetch("/api/auth/logout", {
+              await fetch(withApiBase("/api/auth/logout"), {
                 method: "POST",
                 credentials: "include",
               });

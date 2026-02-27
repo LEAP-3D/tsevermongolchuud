@@ -1,6 +1,7 @@
 "use client";
 
 import TeslaAuthLayout from "../../components/TeslaAuthLayout";
+import { withApiBase } from "@/lib/apiBase";
 import { Component, type FormEvent, type ReactNode, useState } from "react";
 import { setStoredUser } from "@/lib/auth";
 
@@ -41,9 +42,10 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(withApiBase("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email: trimmedEmail, password }),
       });
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { withApiBase } from "./apiBase";
 
 export type AuthUser = {
   id: number;
@@ -61,7 +62,7 @@ export const useAuthUser = () => {
       if (!localUser) return;
 
       try {
-        const response = await fetch("/api/auth/session", {
+        const response = await fetch(withApiBase("/api/auth/session"), {
           method: "GET",
           cache: "no-store",
           credentials: "include",
