@@ -36,6 +36,38 @@ const DEFAULT_BEDTIME_SCHEDULE = {
   weekendEndMinute: 8 * 60,
 } as const;
 
+const DEFAULT_CATEGORY_MINUTES = 60;
+
+const normalizeCategoryKey = (value: string) => value.trim().toLowerCase();
+
+const buildCategoryLimits = (
+  availableCategories: Array<{ id: number; name: string }>,
+  savedLimits: LimitItem[] | null | undefined,
+  fallbackMinutes = DEFAULT_CATEGORY_MINUTES,
+): LimitItem[] => {
+  const saved = Array.isArray(savedLimits) ? savedLimits : [];
+  if (!availableCategories || availableCategories.length === 0) {
+    return saved;
+  }
+  const savedByKey = new Map(
+    saved.map((item) => [normalizeCategoryKey(item.name), item]),
+  );
+  return availableCategories.map((category, index) => {
+    const key = normalizeCategoryKey(category.name);
+    const savedItem = savedByKey.get(key);
+    const minutesValue = Number(savedItem?.minutes);
+    const minutes =
+      Number.isFinite(minutesValue) && minutesValue > 0
+        ? Math.round(minutesValue)
+        : fallbackMinutes;
+    return {
+      id: savedItem?.id ?? category.id ?? index + 1,
+      name: category.name,
+      minutes,
+    };
+  });
+};
+
 const readDraft = (parentId: number, childId: number): TimeLimitsDraft | null => {
   if (typeof window === 'undefined') return null;
   try {
@@ -82,6 +114,7 @@ export default function TimeLimitsContent({
   const skipNextAutoSaveRef = useRef(true);
   const isSavingRef = useRef(false);
   const extensionAutoPromptedChildRef = useRef<number | null>(null);
+  const hydratedChildRef = useRef<number | null>(null);
   const [dailyLimit, setDailyLimit] = useState(240);
   const [weekdayLimit, setWeekdayLimit] = useState(180);
   const [weekendLimit, setWeekendLimit] = useState(300);
@@ -139,15 +172,8 @@ export default function TimeLimitsContent({
     { id: 9, name: 'Learning Apps', minutes: 120 },
     { id: 10, name: 'Browser', minutes: 90 }
   ]);
-  const [categoryLimits, setCategoryLimits] = useState([
-    { id: 101, name: 'Education', minutes: 180 },
-    { id: 102, name: 'Games', minutes: 120 },
-    { id: 103, name: 'Social', minutes: 60 },
-    { id: 104, name: 'Entertainment', minutes: 90 },
-    { id: 105, name: 'Creativity', minutes: 120 },
-    { id: 106, name: 'Communication', minutes: 60 },
-    { id: 107, name: 'Productivity', minutes: 120 }
-  ]);
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
+  const [categoryLimits, setCategoryLimits] = useState<LimitItem[]>([]);
   const [blockedDuringFocus, setBlockedDuringFocus] = useState<string[]>([
     'Social Media',
     'Gaming',
@@ -259,25 +285,22 @@ export default function TimeLimitsContent({
   );
 
   const defaultCategoryLimits = useMemo(
-    () => [
-      { id: 101, name: 'Education', minutes: 180 },
-      { id: 102, name: 'Games', minutes: 120 },
-      { id: 103, name: 'Social', minutes: 60 },
-      { id: 104, name: 'Entertainment', minutes: 90 },
-      { id: 105, name: 'Creativity', minutes: 120 },
-      { id: 106, name: 'Communication', minutes: 60 },
-      { id: 107, name: 'Productivity', minutes: 120 }
-    ],
-    []
+    () => buildCategoryLimits(availableCategories, [], DEFAULT_CATEGORY_MINUTES),
+    [availableCategories]
   );
 
   useEffect(() => {
     if (!user?.id || !selectedChildId) {
+      hydratedChildRef.current = null;
       setHydrated(false);
+      return;
+    }
+    if (hydratedChildRef.current === selectedChildId) {
       return;
     }
     const draft = readDraft(user.id, selectedChildId);
     if (!draft) {
+      hydratedChildRef.current = null;
       setHydrated(false);
       return;
     }
@@ -311,18 +334,20 @@ export default function TimeLimitsContent({
     setFocusMode(Boolean(draft.focusMode));
     setDowntimeEnabled(Boolean(draft.downtimeEnabled));
     setAppLimits(Array.isArray(draft.appLimits) && draft.appLimits.length > 0 ? draft.appLimits : defaultAppLimits);
-    setCategoryLimits(
-      Array.isArray(draft.categoryLimits) && draft.categoryLimits.length > 0
-        ? draft.categoryLimits
-        : defaultCategoryLimits
+    const nextCategoryLimits = buildCategoryLimits(
+      availableCategories,
+      draft.categoryLimits,
+      DEFAULT_CATEGORY_MINUTES,
     );
+    setCategoryLimits(nextCategoryLimits.length > 0 ? nextCategoryLimits : defaultCategoryLimits);
     setBlockedDuringFocus(
       Array.isArray(draft.blockedDuringFocus) && draft.blockedDuringFocus.length > 0
         ? draft.blockedDuringFocus
         : ['Social Media', 'Gaming', 'Streaming Video']
     );
     setHydrated(true);
-  }, [defaultAppLimits, defaultCategoryLimits, selectedChildId, user?.id]);
+    hydratedChildRef.current = selectedChildId;
+  }, [availableCategories, defaultAppLimits, defaultCategoryLimits, selectedChildId, user?.id]);
 
   useEffect(() => {
     const loadChildren = async () => {
@@ -408,6 +433,7 @@ export default function TimeLimitsContent({
           } | null;
           appLimits?: Array<{ id: number; name: string; minutes: number }>;
           categoryLimits?: Array<{ id: number; name: string; minutes: number }>;
+          availableCategories?: Array<{ id: number; name: string }>;
           alwaysAllowed?: Array<{ id: number; name: string }>;
           blockedDuringFocus?: Array<{ id: number; name: string }>;
         } = await response.json();
@@ -444,17 +470,21 @@ export default function TimeLimitsContent({
             ? payload.appLimits
             : defaultAppLimits
         );
-        setCategoryLimits(
-          payload.categoryLimits && payload.categoryLimits.length > 0
-            ? payload.categoryLimits
-            : defaultCategoryLimits
+        const nextAvailableCategories = payload.availableCategories ?? [];
+        setAvailableCategories(nextAvailableCategories);
+        const nextCategoryLimits = buildCategoryLimits(
+          nextAvailableCategories,
+          payload.categoryLimits,
+          DEFAULT_CATEGORY_MINUTES,
         );
+        setCategoryLimits(nextCategoryLimits);
         setBlockedDuringFocus(
           payload.blockedDuringFocus && payload.blockedDuringFocus.length > 0
             ? payload.blockedDuringFocus.map((item) => item.name)
             : ['Social Media', 'Gaming', 'Streaming Video']
         );
         setHydrated(true);
+        hydratedChildRef.current = selectedChildId;
 
         if (isManualRefresh) {
           setSuccess(
@@ -485,6 +515,7 @@ export default function TimeLimitsContent({
           setBlockedDuringFocus(['Social Media', 'Gaming', 'Streaming Video']);
         }
         setHydrated(true);
+        hydratedChildRef.current = selectedChildId;
       } finally {
         setLoading(false);
         setDailyRefreshing(false);

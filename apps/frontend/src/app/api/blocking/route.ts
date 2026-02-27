@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
+import { filterRestrictedCategories } from "@/lib/categoryFilters";
 
 const requireChild = async (childId: number, parentId: number) => {
   const child = await prisma.child.findUnique({
@@ -62,6 +63,7 @@ export async function GET(req: Request) {
       })
     : [];
 
+  const visibleCategories = filterRestrictedCategories(categories);
   const statusMap = new Map(categorySettings.map((setting) => [setting.categoryId, setting.status]));
   const sourceByCategoryId = new Map(
     categorySettings
@@ -69,7 +71,7 @@ export async function GET(req: Request) {
       .map((setting) => [setting.categoryId, getBlockedSource(setting.timeLimit)]),
   );
   const sourceByUrlId = new Map(urlSettings.map((setting) => [setting.urlId, getBlockedSource(setting.timeLimit)]));
-  const categoriesWithStatus = categories.map((category) => ({
+  const categoriesWithStatus = visibleCategories.map((category) => ({
     id: category.id,
     name: category.name,
     status: statusMap.get(category.id) ?? "ALLOWED",
