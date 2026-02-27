@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
+import { filterRestrictedCategories, normalizeCategoryName } from "@/lib/categoryFilters";
 
 const TABLE_NOT_FOUND_CODE = "P2021";
 const isPrismaTableMissingError = (error: unknown) =>
@@ -340,6 +341,10 @@ export async function GET(req: Request) {
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         }),
+        prisma.categoryCatalog.findMany({
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        }),
       ]);
 
     let timeLimitData;
@@ -351,8 +356,14 @@ export async function GET(req: Request) {
       timeLimitData = await loadTimeLimitData();
     }
 
-    const [loadedTimeLimit, appLimits, categoryLimits, alwaysAllowed, blockedDuringFocus] =
-      timeLimitData;
+    const [
+      loadedTimeLimit,
+      appLimits,
+      categoryLimits,
+      alwaysAllowed,
+      blockedDuringFocus,
+      catalogCategories,
+    ] = timeLimitData;
     let timeLimit = loadedTimeLimit;
 
     if (!timeLimit) {
@@ -388,6 +399,13 @@ export async function GET(req: Request) {
     }
 
     const normalizedTimeLimit = timeLimit ? normalizeTimeLimitRow(timeLimit) : null;
+    const availableCategories = filterRestrictedCategories(catalogCategories ?? []);
+    const allowedCategoryNames = new Set(
+      availableCategories.map((category) => normalizeCategoryName(category.name))
+    );
+    const filteredCategoryLimits = (categoryLimits ?? []).filter((item) =>
+      allowedCategoryNames.has(normalizeCategoryName(item.name))
+    );
     let bedtimeSchedule = normalizeBedtimeSchedule(null);
     try {
       bedtimeSchedule = await getBedtimeSchedule(childId);
@@ -400,7 +418,8 @@ export async function GET(req: Request) {
       timeLimit: normalizedTimeLimit,
       bedtimeSchedule,
       appLimits,
-      categoryLimits,
+      categoryLimits: filteredCategoryLimits,
+      availableCategories,
       alwaysAllowed,
       blockedDuringFocus,
     });
@@ -411,6 +430,7 @@ export async function GET(req: Request) {
         bedtimeSchedule: normalizeBedtimeSchedule(null),
         appLimits: [],
         categoryLimits: [],
+        availableCategories: [],
         alwaysAllowed: [],
         blockedDuringFocus: [],
         warning: "Time-limit tables are missing in current database.",

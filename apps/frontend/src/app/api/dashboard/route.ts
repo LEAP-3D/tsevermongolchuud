@@ -232,6 +232,20 @@ export async function GET(req: Request) {
     return sum + Math.max(0, Number(entry.duration ?? 0));
   }, 0);
 
+  const historyInRange =
+    range === "today"
+      ? history.filter((entry) => {
+          if (!entry.visitedAt) return false;
+          const visitedAt = new Date(entry.visitedAt);
+          if (Number.isNaN(visitedAt.getTime())) return false;
+          return toDateKey(visitedAt, timeZone) === todayKey;
+        })
+      : history;
+  const rangeTotalSeconds = historyInRange.reduce(
+    (sum, entry) => sum + Math.max(0, Number(entry.duration ?? 0)),
+    0,
+  );
+
   let usageTimeline: Array<{
     day: string;
     minutes: number;
@@ -245,7 +259,6 @@ export async function GET(req: Request) {
       leftAt: string;
     }>;
   }> = [];
-  let rangeTotalSeconds = 0;
 
   if (range === "today") {
     const bucketHours = 2;
@@ -268,7 +281,7 @@ export async function GET(req: Request) {
 
     const todayBucketKey = getDateKey(new Date(), timeZone);
 
-    for (const entry of history) {
+    for (const entry of historyInRange) {
       if (!entry.visitedAt) continue;
       const visited = new Date(entry.visitedAt);
       if (Number.isNaN(visited.getTime())) continue;
@@ -314,7 +327,6 @@ export async function GET(req: Request) {
         })),
     }));
 
-    rangeTotalSeconds = Array.from(hourTotals.values()).reduce((sum, value) => sum + value, 0);
   } else if (range === "all") {
     const firstVisitedAt = history.reduce<Date | null>((oldest, entry) => {
       if (!entry.visitedAt) return oldest;
@@ -340,7 +352,7 @@ export async function GET(req: Request) {
       >
     >();
 
-    for (const entry of history) {
+    for (const entry of historyInRange) {
       if (!entry.visitedAt) continue;
       const visitedAt = new Date(entry.visitedAt);
       if (Number.isNaN(visitedAt.getTime())) continue;
@@ -385,12 +397,11 @@ export async function GET(req: Request) {
         })),
     }));
 
-    rangeTotalSeconds = Array.from(allTimeTotals.values()).reduce((sum, value) => sum + value, 0);
   } else {
     const rangeDays = days ?? 7;
     const labels = buildDayLabels(rangeDays, timeZone);
     const dayTotals = new Map(labels.map((item) => [item.key, 0]));
-    for (const entry of history) {
+    for (const entry of historyInRange) {
       if (!entry.visitedAt) continue;
       const key = toDateKey(new Date(entry.visitedAt), timeZone);
       if (dayTotals.has(key)) {
@@ -412,7 +423,7 @@ export async function GET(req: Request) {
         }
       >
     >();
-    for (const entry of history) {
+    for (const entry of historyInRange) {
       if (!entry.visitedAt) continue;
       const key = toDateKey(new Date(entry.visitedAt), timeZone);
       if (!dayTotals.has(key)) continue;
@@ -454,7 +465,6 @@ export async function GET(req: Request) {
         })),
     }));
 
-    rangeTotalSeconds = Array.from(dayTotals.values()).reduce((sum, value) => sum + value, 0);
   }
 
   const categoryTotals = new Map<string, number>();
@@ -462,7 +472,7 @@ export async function GET(req: Request) {
     string,
     { category: string; url: string; domain: string; seconds: number }
   >();
-  for (const entry of history) {
+  for (const entry of historyInRange) {
     const name = normalizeCategoryName(entry.categoryName);
     const duration = Math.max(0, Number(entry.duration ?? 0));
     categoryTotals.set(name, (categoryTotals.get(name) ?? 0) + duration);
@@ -511,7 +521,7 @@ export async function GET(req: Request) {
   let blockedEvents = 0;
   let dangerousBlockedEvents = 0;
 
-  for (const entry of history) {
+  for (const entry of historyInRange) {
     const duration = Math.max(0, Number(entry.duration ?? 0));
     const score = entry.domain ? (safetyScoreByDomain.get(entry.domain) ?? 50) : 50;
     weightedSafetyNumerator += score * duration;
