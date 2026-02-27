@@ -1,6 +1,7 @@
 "use client";
 
 import { type AuthUser } from "@/lib/auth";
+import { withApiBase } from "@/lib/apiBase";
 import { type FormEvent, useState } from "react";
 import PasswordField from "./PasswordField";
 
@@ -34,9 +35,10 @@ export default function SignUpForm({ onSuccess }: SignUpFormProps) {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/auth/signup", {
+      const response = await fetch(withApiBase("/api/auth/signup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           name: trimmedName || null,
           email: trimmedEmail,

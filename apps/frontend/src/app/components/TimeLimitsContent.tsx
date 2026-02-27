@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Clock } from 'lucide-react';
 import { useAuthUser } from '@/lib/auth';
+import { withApiBase } from "@/lib/apiBase";
 import { detectSafekidExtensionInstalled, type ExtensionStatus } from '@/lib/extensionDetection';
 
 type LimitItem = { id: number; name: string; minutes: number };
@@ -284,10 +285,7 @@ export default function TimeLimitsContent({
     []
   );
 
-  const defaultCategoryLimits = useMemo(
-    () => buildCategoryLimits(availableCategories, [], DEFAULT_CATEGORY_MINUTES),
-    [availableCategories]
-  );
+  const defaultCategoryLimits = useMemo<LimitItem[]>(() => [], []);
 
   useEffect(() => {
     if (!user?.id || !selectedChildId) {
@@ -357,7 +355,10 @@ export default function TimeLimitsContent({
         return;
       }
       try {
-        const response = await fetch(`/api/child?parentId=${encodeURIComponent(String(user.id))}`);
+        const response = await fetch(
+        withApiBase(`/api/child?parentId=${encodeURIComponent(String(user.id))}`),
+        { credentials: "include" },
+      );
         if (!response.ok) return;
         const data: Array<{ id: number; name: string }> = await response.json();
         setChildren(data);
@@ -399,7 +400,7 @@ export default function TimeLimitsContent({
       }
 
       try {
-        const response = await fetch(`/api/timelimits?childId=${selectedChildId}`, {
+        const response = await fetch(withApiBase(`/api/timelimits?childId=${selectedChildId}`), {
           cache: 'no-store',
           credentials: 'include',
         });
@@ -538,7 +539,7 @@ export default function TimeLimitsContent({
       setSuccess('');
     }
     try {
-      const response = await fetch('/api/timelimits', {
+      const response = await fetch(withApiBase('/api/timelimits'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -634,7 +635,7 @@ export default function TimeLimitsContent({
     setSuccess('');
 
     try {
-      const resetResponse = await fetch('/api/timelimits', {
+      const resetResponse = await fetch(withApiBase('/api/timelimits'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

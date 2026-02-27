@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { withApiBase } from "@/lib/apiBase";
 import { Check, Copy, Plus, X } from 'lucide-react';
 import type { Child } from './types';
 import { useAuthUser } from '@/lib/auth';
@@ -52,9 +53,10 @@ export default function AddChildModal({
 
     try {
       console.log('AddChild submit', { name: trimmed, parentId: user.id, pin: generatedPin });
-      const response = await fetch('/api/child', {
+      const response = await fetch(withApiBase('/api/child'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: "include",
         body: JSON.stringify({
           name: trimmed,
           pin: generatedPin,

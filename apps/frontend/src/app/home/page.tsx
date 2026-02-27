@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuthUser } from "@/lib/auth";
+import { withApiBase } from "@/lib/apiBase";
 import Sidebar from "../components/Sidebar";
 import DashboardContent from "../components/DashboardContent";
 import BlockingContent from "../components/BlockingContent";
@@ -94,9 +95,10 @@ export default function HomeDashboard() {
     setAiThinking(true);
 
     try {
-      const response = await fetch("/api/ai/assistant", {
+      const response = await fetch(withApiBase("/api/ai/assistant"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           parentId: user.id,
           selectedChildId,
@@ -155,9 +157,10 @@ export default function HomeDashboard() {
     if (!user?.id || aiThinking || pendingActions.length === 0) return;
     setAiThinking(true);
     try {
-      const response = await fetch("/api/ai/assistant", {
+      const response = await fetch(withApiBase("/api/ai/assistant"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           parentId: user.id,
           selectedChildId,
@@ -230,7 +233,8 @@ export default function HomeDashboard() {
     try {
       const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       const response = await fetch(
-        `/api/child?parentId=${encodeURIComponent(String(user.id))}&timeZone=${encodeURIComponent(localTimeZone)}`,
+        withApiBase(`/api/child?parentId=${encodeURIComponent(String(user.id))}&timeZone=${encodeURIComponent(localTimeZone)}`),
+        { credentials: "include" },
       );
       if (!response.ok) {
         let message = "Failed to load children.";
@@ -305,9 +309,10 @@ export default function HomeDashboard() {
     try {
       const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       const response = await fetch(
-        `/api/dashboard?childId=${selectedChildId}&range=${timeFilter}&timeZone=${encodeURIComponent(
+        withApiBase(`/api/dashboard?childId=${selectedChildId}&range=${timeFilter}&timeZone=${encodeURIComponent(
           localTimeZone
-        )}&parentId=${encodeURIComponent(String(user.id))}`
+        )}&parentId=${encodeURIComponent(String(user.id))}`),
+        { credentials: "include" },
       );
       if (response.status === 401) {
         setDashboardError("");
