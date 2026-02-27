@@ -284,10 +284,7 @@ export default function TimeLimitsContent({
     []
   );
 
-  const defaultCategoryLimits = useMemo(
-    () => buildCategoryLimits(availableCategories, [], DEFAULT_CATEGORY_MINUTES),
-    [availableCategories]
-  );
+  const defaultCategoryLimits = useMemo<LimitItem[]>(() => [], []);
 
   useEffect(() => {
     if (!user?.id || !selectedChildId) {
