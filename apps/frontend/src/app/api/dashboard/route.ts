@@ -241,7 +241,7 @@ export async function GET(req: Request) {
           return toDateKey(visitedAt, timeZone) === todayKey;
         })
       : history;
-  let rangeTotalSeconds = historyInRange.reduce(
+  const rangeTotalSeconds = historyInRange.reduce(
     (sum, entry) => sum + Math.max(0, Number(entry.duration ?? 0)),
     0,
   );
