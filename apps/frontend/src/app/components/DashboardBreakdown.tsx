@@ -53,23 +53,17 @@ export default function DashboardBreakdown({
   }, [riskData]);
 
   const formatMinutes = (minutesValue: number) => {
-    if (!Number.isFinite(minutesValue) || minutesValue <= 0) return "0m";
-    const total = Math.round(minutesValue);
-    const hours = Math.floor(total / 60);
-    const minutes = total % 60;
-    if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-    if (hours > 0) return `${hours}h`;
-    return `${minutes}m`;
+    const safe = Number(minutesValue);
+    if (!Number.isFinite(safe) || safe <= 0) return "0m";
+    const rounded = Math.round(safe * 10) / 10;
+    return Number.isInteger(rounded)
+      ? `${rounded} minutes`
+      : `${rounded.toFixed(1)} minutes`;
   };
 
   const formatDuration = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds <= 0) return "0m";
-    const totalMinutes = Math.round(seconds / 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-    if (hours > 0) return `${hours}h`;
-    return `${minutes}m`;
+    return formatMinutes(seconds / 60);
   };
 
   const getDisplayUrl = (rawUrl: string, fallbackDomain?: string) => {

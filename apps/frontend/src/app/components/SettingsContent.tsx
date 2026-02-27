@@ -233,15 +233,7 @@ export default function SettingsContent({
       </div>
 
       <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <h3 className="text-sm md:text-base font-semibold text-gray-900">Manage Children</h3>
-          <button
-            onClick={() => void loadChildren()}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-          >
-            Refresh
-          </button>
-        </div>
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Manage Children</h3>
         {childrenLoading && (
           <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
             Loading children...

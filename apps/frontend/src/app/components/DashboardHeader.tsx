@@ -50,7 +50,6 @@ export default function DashboardHeader({
             { key: "today", label: "Today" },
             { key: "7d", label: "7d" },
             { key: "30d", label: "30d" },
-            { key: "all", label: "All-Time" },
           ].map(filter => (
             <button
               key={filter.key}

@@ -86,6 +86,8 @@ export const historyApi = {
     categoryName: string;
     duration: number;
     visitedAt?: string;
+    timeZone?: string;
+    timezoneOffsetMinutes?: number;
     actionTaken: "ALLOWED" | "BLOCKED" | "LIMITED";
     device?: string | null;
   }) => api.post("/api/history", data).then((r) => r.data),
