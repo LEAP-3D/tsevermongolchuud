@@ -4,14 +4,14 @@
   "private": true,
   "scripts": {
     "postinstall": "npm run db:generate",
-    "db:generate": "prisma generate --schema ../../prisma/schema.prisma",
+    "db:generate": "prisma generate --schema ./prisma/schema.prisma",
     "dev": "next dev -p 3000",
     "build": "npm run lint && next build --webpack",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "db:migrate": "prisma migrate dev --schema ../../prisma/schema.prisma",
-    "db:push": "prisma db push --schema ../../prisma/schema.prisma",
-    "db:studio": "prisma studio --schema ../../prisma/schema.prisma"
+    "db:migrate": "prisma migrate dev --schema ./prisma/schema.prisma",
+    "db:push": "prisma db push --schema ./prisma/schema.prisma",
+    "db:studio": "prisma studio --schema ./prisma/schema.prisma"
   },
   "dependencies": {
     "axios": "^1.13.5",

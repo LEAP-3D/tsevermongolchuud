@@ -33,13 +33,19 @@ const QUICK_PROMPTS = [
 type AssistantAction =
   | { type: "BLOCK_DOMAIN"; childId?: number; childName?: string; domain?: string }
   | { type: "BLOCK_CATEGORY"; childId?: number; childName?: string; categoryName?: string }
-  | { type: "SET_DAILY_LIMIT"; childId?: number; childName?: string; minutes?: number }
+  | { type: "SET_WEEKDAY_LIMIT"; childId?: number; childName?: string; minutes?: number }
+  | { type: "SET_WEEKEND_LIMIT"; childId?: number; childName?: string; minutes?: number }
+  | { type: "SET_CATEGORY_LIMIT"; childId?: number; childName?: string; categoryName?: string; minutes?: number }
   | { type: "SET_SESSION_LIMIT"; childId?: number; childName?: string; minutes?: number };
 
 const describeAction = (action: AssistantAction) => {
   if (action.type === "BLOCK_DOMAIN") return `Block domain: ${action.domain ?? "unknown"}`;
   if (action.type === "BLOCK_CATEGORY") return `Block category: ${action.categoryName ?? "unknown"}`;
-  if (action.type === "SET_DAILY_LIMIT") return `Set daily limit: ${action.minutes ?? "?"}m`;
+  if (action.type === "SET_WEEKDAY_LIMIT") return `Set weekday limit: ${action.minutes ?? "?"}m`;
+  if (action.type === "SET_WEEKEND_LIMIT") return `Set weekend limit: ${action.minutes ?? "?"}m`;
+  if (action.type === "SET_CATEGORY_LIMIT") {
+    return `Set ${action.categoryName ?? "category"} limit: ${action.minutes ?? "?"}m`;
+  }
   return `Set session limit: ${action.minutes ?? "?"}m`;
 };
 
