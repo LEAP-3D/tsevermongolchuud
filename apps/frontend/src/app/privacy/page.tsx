@@ -1,23 +1,13 @@
 import Link from "next/link";
-import { Sora, Manrope } from "next/font/google";
 
-const heading = Sora({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-heading",
-});
-
-const body = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-body",
-});
+const headingFamily = '"Sora", "Trebuchet MS", "Segoe UI", sans-serif';
+const bodyFamily = '"Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
 
 export default function PrivacyPolicyPage() {
   return (
     <main
-      className={`${body.variable} ${heading.variable} min-h-screen bg-slate-950 text-white`}
-      style={{ fontFamily: "var(--font-body)" }}
+      className="min-h-screen bg-slate-950 text-white"
+      style={{ fontFamily: bodyFamily }}
     >
       <div className="mx-auto w-full max-w-4xl px-5 py-12 md:px-8">
         <Link href="/" className="text-sm text-slate-300 hover:text-white">
@@ -25,7 +15,7 @@ export default function PrivacyPolicyPage() {
         </Link>
         <h1
           className="mt-6 text-3xl font-semibold md:text-4xl"
-          style={{ fontFamily: "var(--font-heading)" }}
+          style={{ fontFamily: headingFamily }}
         >
           Privacy Policy
         </h1>
@@ -37,7 +27,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               Overview
             </h2>
@@ -52,7 +42,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               Data We Collect
             </h2>
@@ -76,7 +66,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               How We Use Data
             </h2>
@@ -94,7 +84,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               Sharing & Third Parties
             </h2>
@@ -110,7 +100,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               Data Retention
             </h2>
@@ -124,7 +114,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               Security
             </h2>
@@ -138,7 +128,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               Children&apos;s Privacy
             </h2>
@@ -152,7 +142,7 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-2">
             <h2
               className="text-lg font-semibold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              style={{ fontFamily: headingFamily }}
             >
               Contact
             </h2>
