@@ -32,6 +32,8 @@ jobs:
       - name: Generate Prisma Client # Added this step to CD as well
         run: npx prisma generate --schema ../../prisma/schema.prisma
       - name: Pull Vercel Environment Info
+        working-directory: .
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy to Production
+        working-directory: .
         run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
