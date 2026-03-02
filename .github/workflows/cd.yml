@@ -34,4 +34,16 @@ jobs:
       - name: Pull Vercel Environment Info
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy to Production
-        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "Production deploy attempt $attempt/3"
+            if vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Production deploy failed, retrying in 20s..."
+              sleep 20
+            fi
+          done
+          echo "Production deploy failed after 3 attempts."
+          exit 1
