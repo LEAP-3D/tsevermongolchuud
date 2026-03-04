@@ -27,6 +27,53 @@ const getHour = (value: Date, timeZone: string) =>
     }).format(value)
   );
 
+const getTimeZoneOffsetMinutes = (value: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(value);
+  const year = Number(parts.find(part => part.type === "year")?.value ?? 0);
+  const month = Number(parts.find(part => part.type === "month")?.value ?? 1);
+  const day = Number(parts.find(part => part.type === "day")?.value ?? 1);
+  const hour = Number(parts.find(part => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find(part => part.type === "minute")?.value ?? 0);
+  const second = Number(parts.find(part => part.type === "second")?.value ?? 0);
+  const interpretedUtc = Date.UTC(year, month - 1, day, hour, minute, second);
+  return Math.round((interpretedUtc - value.getTime()) / 60000);
+};
+
+const normalizeVisitedAtForDisplay = (visitedAt: Date | null | undefined, timeZone: string, now: Date) => {
+  if (!visitedAt) return null;
+  const original = new Date(visitedAt);
+  if (Number.isNaN(original.getTime())) return null;
+
+  // Legacy records may be stored as local clock time interpreted as UTC (commonly +offset hours ahead).
+  if (original.getTime() <= now.getTime() + 2 * 60 * 1000) {
+    return original;
+  }
+
+  const offsetMinutes = getTimeZoneOffsetMinutes(original, timeZone);
+  if (!Number.isFinite(offsetMinutes) || offsetMinutes === 0) {
+    return original;
+  }
+
+  const shifted = new Date(original.getTime() - offsetMinutes * 60 * 1000);
+  if (Number.isNaN(shifted.getTime())) return original;
+  if (shifted.getTime() <= now.getTime() + 2 * 60 * 1000) {
+    return shifted;
+  }
+
+  return Math.abs(shifted.getTime() - now.getTime()) < Math.abs(original.getTime() - now.getTime())
+    ? shifted
+    : original;
+};
+
 const getDayStart = (timeZone: string, value: Date = new Date()) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -37,12 +84,14 @@ const getDayStart = (timeZone: string, value: Date = new Date()) => {
   const year = Number(parts.find(part => part.type === "year")?.value ?? 0);
   const month = Number(parts.find(part => part.type === "month")?.value ?? 1);
   const day = Number(parts.find(part => part.type === "day")?.value ?? 1);
-  return new Date(Date.UTC(year, month - 1, day));
+  const utcMidnightGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  const offsetMinutes = getTimeZoneOffsetMinutes(utcMidnightGuess, timeZone);
+  return new Date(utcMidnightGuess.getTime() - offsetMinutes * 60 * 1000);
 };
 
 
 const normalizeRange = (range: string | null) => {
-  if (range === "today" || range === "7d" || range === "30d" || range === "all") return range;
+  if (range === "today" || range === "7d" || range === "30d") return range;
   return "7d";
 };
 
@@ -103,34 +152,21 @@ const buildDayLabels = (days: number, timeZone: string) => {
   return labels;
 };
 
-const buildDayLabelsBetween = (startDate: Date, endDate: Date, timeZone: string) => {
-  const labels: Array<{ key: string; label: string; date: Date }> = [];
-  const start = getDayStart(timeZone, startDate);
-  const end = getDayStart(timeZone, endDate);
-  const cursor = new Date(start);
-  while (cursor.getTime() <= end.getTime()) {
-    const key = toDateKey(cursor, timeZone);
-    const label = cursor.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "2-digit",
-      timeZone,
-    });
-    labels.push({ key, label, date: new Date(cursor) });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return labels;
-};
-
 const secondsToMinutes = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds <= 0) return 0;
   return seconds / 60;
 };
 
+const secondsToDecimalMinutes = (seconds: number) => {
+  const safe = Math.max(0, Number(seconds ?? 0));
+  if (safe <= 0) return 0;
+  return Math.round(secondsToMinutes(safe) * 10) / 10;
+};
+
 const secondsToTimelineMinutes = (seconds: number) => {
   const safe = Math.max(0, Number(seconds ?? 0));
   if (safe <= 0) return 0;
-  return Math.max(1, Math.round(secondsToMinutes(safe)));
+  return secondsToDecimalMinutes(safe);
 };
 
 const normalizeCategoryName = (value: string | null | undefined) => {
@@ -177,18 +213,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const days = range === "all" ? null : parseRangeDays(range);
+  const days = parseRangeDays(range);
   const start = days ? getDayStart(timeZone, new Date()) : null;
   if (start && days) {
     start.setUTCDate(start.getUTCDate() - (days - 1));
   }
 
   const historyStart =
-    range === "all"
-      ? null
-      : range === "today" && start
-        ? new Date(start.getTime() - 24 * 60 * 60 * 1000)
-        : start;
+    range === "today" && start
+      ? new Date(start.getTime() - 24 * 60 * 60 * 1000)
+      : start;
 
   const historyWhere: { childId: number; visitedAt?: { gte: Date } } = { childId };
   if (historyStart) {
@@ -223,8 +257,13 @@ export async function GET(req: Request) {
       },
     }),
   ]);
+  const now = new Date();
+  const historyNormalized = history.map((entry) => ({
+    ...entry,
+    visitedAt: normalizeVisitedAtForDisplay(entry.visitedAt, timeZone, now),
+  }));
   const todayKey = getDateKey(new Date(), timeZone);
-  const todaySeconds = history.reduce((sum, entry) => {
+  const todaySeconds = historyNormalized.reduce((sum, entry) => {
     if (!entry.visitedAt) return sum;
     const visitedAt = new Date(entry.visitedAt);
     if (Number.isNaN(visitedAt.getTime())) return sum;
@@ -234,13 +273,13 @@ export async function GET(req: Request) {
 
   const historyInRange =
     range === "today"
-      ? history.filter((entry) => {
+      ? historyNormalized.filter((entry) => {
           if (!entry.visitedAt) return false;
           const visitedAt = new Date(entry.visitedAt);
           if (Number.isNaN(visitedAt.getTime())) return false;
           return toDateKey(visitedAt, timeZone) === todayKey;
         })
-      : history;
+      : historyNormalized;
   const rangeTotalSeconds = historyInRange.reduce(
     (sum, entry) => sum + Math.max(0, Number(entry.duration ?? 0)),
     0,
@@ -314,83 +353,13 @@ export async function GET(req: Request) {
       day: item.label,
       minutes: secondsToTimelineMinutes(hourTotals.get(item.key) ?? 0),
       sites: Array.from((bucketSites.get(item.key) ?? new Map()).values())
-        .sort((a, b) => b.seconds - a.seconds)
+        .sort((a, b) => b.leftAtMs - a.leftAtMs)
         .slice(0, 8)
         .map((site) => ({
           url: site.url,
           domain: site.domain,
           category: site.category,
-          minutes: Math.max(1, Math.round(secondsToMinutes(site.seconds))),
-          logoUrl: toFaviconUrl(site.domain),
-          enteredAt: new Date(site.enteredAtMs).toISOString(),
-          leftAt: new Date(site.leftAtMs).toISOString(),
-        })),
-    }));
-
-  } else if (range === "all") {
-    const firstVisitedAt = history.reduce<Date | null>((oldest, entry) => {
-      if (!entry.visitedAt) return oldest;
-      const candidate = new Date(entry.visitedAt);
-      if (Number.isNaN(candidate.getTime())) return oldest;
-      if (!oldest || candidate.getTime() < oldest.getTime()) return candidate;
-      return oldest;
-    }, null);
-    const allTimeLabels = buildDayLabelsBetween(firstVisitedAt ?? new Date(), new Date(), timeZone);
-    const allTimeTotals = new Map(allTimeLabels.map((item) => [item.key, 0]));
-    const allTimeSites = new Map<
-      string,
-      Map<
-        string,
-        {
-          url: string;
-          domain: string;
-          category: string;
-          seconds: number;
-          enteredAtMs: number;
-          leftAtMs: number;
-        }
-      >
-    >();
-
-    for (const entry of historyInRange) {
-      if (!entry.visitedAt) continue;
-      const visitedAt = new Date(entry.visitedAt);
-      if (Number.isNaN(visitedAt.getTime())) continue;
-      const key = toDateKey(visitedAt, timeZone);
-      if (!allTimeTotals.has(key)) continue;
-      allTimeTotals.set(key, (allTimeTotals.get(key) ?? 0) + (entry.duration ?? 0));
-
-      const url = typeof entry.fullUrl === "string" && entry.fullUrl ? entry.fullUrl : "";
-      if (!url) continue;
-      if (!allTimeSites.has(key)) {
-        allTimeSites.set(key, new Map());
-      }
-      const byUrl = allTimeSites.get(key);
-      if (!byUrl) continue;
-      const leftAtMs = visitedAt.getTime();
-      const enteredAtMs = leftAtMs - Math.max(0, Number(entry.duration ?? 0)) * 1000;
-      const current = byUrl.get(url);
-      byUrl.set(url, {
-        url,
-        domain: entry.domain || "-",
-        category: normalizeCategoryName(entry.categoryName),
-        seconds: (current?.seconds ?? 0) + (entry.duration ?? 0),
-        enteredAtMs: Math.min(current?.enteredAtMs ?? enteredAtMs, enteredAtMs),
-        leftAtMs: Math.max(current?.leftAtMs ?? leftAtMs, leftAtMs),
-      });
-    }
-
-    usageTimeline = allTimeLabels.map((item) => ({
-      day: item.label,
-      minutes: secondsToTimelineMinutes(allTimeTotals.get(item.key) ?? 0),
-      sites: Array.from((allTimeSites.get(item.key) ?? new Map()).values())
-        .sort((a, b) => b.seconds - a.seconds)
-        .slice(0, 8)
-        .map((site) => ({
-          url: site.url,
-          domain: site.domain,
-          category: site.category,
-          minutes: Math.max(1, Math.round(secondsToMinutes(site.seconds))),
+          minutes: secondsToDecimalMinutes(site.seconds),
           logoUrl: toFaviconUrl(site.domain),
           enteredAt: new Date(site.enteredAtMs).toISOString(),
           leftAt: new Date(site.leftAtMs).toISOString(),
@@ -452,13 +421,13 @@ export async function GET(req: Request) {
       day: item.label,
       minutes: secondsToTimelineMinutes(dayTotals.get(item.key) ?? 0),
       sites: Array.from((daySites.get(item.key) ?? new Map()).values())
-        .sort((a, b) => b.seconds - a.seconds)
+        .sort((a, b) => b.leftAtMs - a.leftAtMs)
         .slice(0, 8)
         .map((site) => ({
           url: site.url,
           domain: site.domain,
           category: site.category,
-          minutes: Math.max(1, Math.round(secondsToMinutes(site.seconds))),
+          minutes: secondsToDecimalMinutes(site.seconds),
           logoUrl: toFaviconUrl(site.domain),
           enteredAt: new Date(site.enteredAtMs).toISOString(),
           leftAt: new Date(site.leftAtMs).toISOString(),
@@ -499,7 +468,7 @@ export async function GET(req: Request) {
       color: palette[index % palette.length],
     }));
 
-  const uniqueDomains = [...new Set(history.map((item) => item.domain).filter((item): item is string => Boolean(item)))];
+  const uniqueDomains = [...new Set(historyNormalized.map((item) => item.domain).filter((item): item is string => Boolean(item)))];
   const domainCatalog = uniqueDomains.length
     ? await prisma.urlCatalog.findMany({
         where: { domain: { in: uniqueDomains } },
@@ -576,19 +545,19 @@ export async function GET(req: Request) {
   const riskData = [
     {
       level: "Safe",
-      count: Math.round(secondsToMinutes(riskCounts.Safe)),
+      count: secondsToDecimalMinutes(riskCounts.Safe),
       visits: riskVisitCounts.Safe,
       color: "#34C759",
     },
     {
       level: "Suspicious",
-      count: Math.round(secondsToMinutes(riskCounts.Suspicious)),
+      count: secondsToDecimalMinutes(riskCounts.Suspicious),
       visits: riskVisitCounts.Suspicious,
       color: "#FF9500",
     },
     {
       level: "Dangerous",
-      count: Math.round(secondsToMinutes(riskCounts.Dangerous)),
+      count: secondsToDecimalMinutes(riskCounts.Dangerous),
       visits: riskVisitCounts.Dangerous,
       color: "#FF3B30",
     },
@@ -604,7 +573,7 @@ export async function GET(req: Request) {
       category: item.category,
       url: item.url,
       domain: item.domain,
-      minutes: Math.max(1, Math.round(secondsToMinutes(item.seconds))),
+      minutes: secondsToDecimalMinutes(item.seconds),
       logoUrl: toFaviconUrl(item.domain),
     }));
   const riskWebsiteDetails = Array.from(riskWebsiteSeconds.values())
@@ -615,7 +584,7 @@ export async function GET(req: Request) {
       category: item.category,
       url: item.url,
       domain: item.domain,
-      minutes: Math.max(1, Math.round(secondsToMinutes(item.seconds))),
+      minutes: secondsToDecimalMinutes(item.seconds),
       safetyScore: item.safetyScore,
       logoUrl: toFaviconUrl(item.domain),
     }));
@@ -627,8 +596,8 @@ export async function GET(req: Request) {
     riskData,
     safetyScore,
     blockedSites: blockedSitesCount,
-    rangeUsageMinutes: Math.round(secondsToMinutes(totalSeconds)),
-    todayUsageMinutes: Math.round(secondsToMinutes(todaySeconds)),
+    rangeUsageMinutes: secondsToDecimalMinutes(totalSeconds),
+    todayUsageMinutes: secondsToDecimalMinutes(todaySeconds),
     categoryWebsiteDetails,
     riskWebsiteDetails,
   });

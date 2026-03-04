@@ -53,23 +53,17 @@ export default function DashboardBreakdown({
   }, [riskData]);
 
   const formatMinutes = (minutesValue: number) => {
-    if (!Number.isFinite(minutesValue) || minutesValue <= 0) return "0m";
-    const total = Math.round(minutesValue);
-    const hours = Math.floor(total / 60);
-    const minutes = total % 60;
-    if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-    if (hours > 0) return `${hours}h`;
-    return `${minutes}m`;
+    const safe = Number(minutesValue);
+    if (!Number.isFinite(safe) || safe <= 0) return "0m";
+    const rounded = Math.round(safe * 10) / 10;
+    return Number.isInteger(rounded)
+      ? `${rounded} minutes`
+      : `${rounded.toFixed(1)} minutes`;
   };
 
   const formatDuration = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds <= 0) return "0m";
-    const totalMinutes = Math.round(seconds / 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-    if (hours > 0) return `${hours}h`;
-    return `${minutes}m`;
+    return formatMinutes(seconds / 60);
   };
 
   const getDisplayUrl = (rawUrl: string, fallbackDomain?: string) => {
@@ -94,26 +88,25 @@ export default function DashboardBreakdown({
   };
 
   const groupedCategoryWebsites = useMemo(() => {
-    const totalMinutes = categoryWebsiteDetails.reduce((acc, item) => acc + item.minutes, 0);
-    const byCategory = new Map<
-      string,
-      { totalMinutes: number; websites: CategoryWebsiteDetail[] }
-    >();
+    const totalSeconds = categoryData.reduce((acc, item) => acc + item.value, 0);
+    const byCategory = new Map<string, { websites: CategoryWebsiteDetail[] }>();
     for (const item of categoryWebsiteDetails) {
-      const current = byCategory.get(item.category) ?? { totalMinutes: 0, websites: [] };
-      current.totalMinutes += item.minutes;
+      const current = byCategory.get(item.category) ?? { websites: [] };
       current.websites.push(item);
       byCategory.set(item.category, current);
     }
-    return Array.from(byCategory.entries())
-      .map(([category, data]) => ({
-        category,
-        totalMinutes: data.totalMinutes,
-        share: totalMinutes > 0 ? Math.round((data.totalMinutes / totalMinutes) * 100) : 0,
-        websites: data.websites.sort((a, b) => b.minutes - a.minutes).slice(0, 8),
-      }))
-      .sort((a, b) => b.totalMinutes - a.totalMinutes);
-  }, [categoryWebsiteDetails]);
+    return categoryData.map((entry) => {
+      const websites = (byCategory.get(entry.name)?.websites ?? [])
+        .sort((a, b) => b.minutes - a.minutes)
+        .slice(0, 8);
+      return {
+        category: entry.name,
+        totalSeconds: entry.value,
+        share: totalSeconds > 0 ? Math.round((entry.value / totalSeconds) * 100) : 0,
+        websites,
+      };
+    });
+  }, [categoryData, categoryWebsiteDetails]);
 
   const groupedRiskWebsites = useMemo(() => {
     const totalMinutes = riskWebsiteDetails.reduce((acc, item) => acc + item.minutes, 0);
@@ -337,7 +330,7 @@ export default function DashboardBreakdown({
                       <div className="text-sm font-semibold text-gray-900">{group.category}</div>
                       <div className="inline-flex items-center gap-2 text-xs text-gray-600">
                         <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
-                          {formatMinutes(group.totalMinutes)}
+                          {formatDuration(group.totalSeconds)}
                         </span>
                         <span>{group.share}%</span>
                       </div>

@@ -79,18 +79,23 @@ jobs:
         run: |
           vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
           DEPLOY_URL=""
-          for attempt in 1 2 3; do
-            echo "Preview deploy attempt $attempt/3"
+          max_attempts=8
+          sleep_seconds=30
+          for attempt in $(seq 1 $max_attempts); do
+            echo "Preview deploy attempt $attempt/$max_attempts"
             if DEPLOY_URL=$(vercel deploy --yes --token=${{ secrets.VERCEL_TOKEN }}); then
               break
             fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Preview deploy failed, retrying in 20s..."
-              sleep 20
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "Preview deploy failed, retrying in ${sleep_seconds}s..."
+              sleep "$sleep_seconds"
+              if [ "$sleep_seconds" -lt 120 ]; then
+                sleep_seconds=$((sleep_seconds + 15))
+              fi
             fi
           done
           if [ -z "$DEPLOY_URL" ]; then
-            echo "Preview deploy failed after 3 attempts."
+            echo "Preview deploy failed after $max_attempts attempts."
             exit 1
           fi
           echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
