@@ -2,7 +2,7 @@
 /* eslint-disable max-lines */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Clock } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useAuthUser } from '@/lib/auth';
 import { withApiBase } from "@/lib/apiBase";
 import { detectSafekidExtensionInstalled, type ExtensionStatus } from '@/lib/extensionDetection';
@@ -10,7 +10,6 @@ import { detectSafekidExtensionInstalled, type ExtensionStatus } from '@/lib/ext
 type LimitItem = { id: number; name: string; minutes: number };
 
 type TimeLimitsDraft = {
-  dailyLimit: number;
   weekdayLimit: number;
   weekendLimit: number;
   schoolNightStartMinute: number;
@@ -116,7 +115,6 @@ export default function TimeLimitsContent({
   const isSavingRef = useRef(false);
   const extensionAutoPromptedChildRef = useRef<number | null>(null);
   const hydratedChildRef = useRef<number | null>(null);
-  const [dailyLimit, setDailyLimit] = useState(240);
   const [weekdayLimit, setWeekdayLimit] = useState(180);
   const [weekendLimit, setWeekendLimit] = useState(300);
   const [schoolNightStartMinute, setSchoolNightStartMinute] = useState(
@@ -154,13 +152,6 @@ export default function TimeLimitsContent({
     return `${mins}m`;
   };
 
-  const formatDurationFull = (minutesValue: number) => {
-    const safeMinutes = Math.max(0, Math.round(minutesValue));
-    const hrs = Math.floor(safeMinutes / 60);
-    const mins = safeMinutes % 60;
-    return `${hrs}h ${mins}m`;
-  };
-
   const [appLimits, setAppLimits] = useState([
     { id: 1, name: 'Social Media', minutes: 60 },
     { id: 2, name: 'Gaming', minutes: 120 },
@@ -187,7 +178,6 @@ export default function TimeLimitsContent({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [hydrated, setHydrated] = useState(false);
-  const [dailyRefreshing, setDailyRefreshing] = useState(false);
   const [showInstallExtension, setShowInstallExtension] = useState(false);
   const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>('not-installed');
 
@@ -206,16 +196,8 @@ export default function TimeLimitsContent({
     return Math.max(1, totalMinutes);
   };
 
-  const dailyParts = toHourMinute(dailyLimit);
   const weekdayParts = toHourMinute(weekdayLimit);
   const weekendParts = toHourMinute(weekendLimit);
-
-  const updateDailyLimitPart = (part: 'hours' | 'minutes', value: number) => {
-    const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-    const nextHours = part === 'hours' ? safeValue : dailyParts.hours;
-    const nextMinutes = part === 'minutes' ? Math.min(59, safeValue) : dailyParts.minutes;
-    setDailyLimit(toMinutesWithoutSecondsInput(nextHours, nextMinutes));
-  };
 
   const updateWeekdayLimitPart = (part: 'hours' | 'minutes', value: number) => {
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
@@ -303,7 +285,6 @@ export default function TimeLimitsContent({
       return;
     }
     skipNextAutoSaveRef.current = true;
-    setDailyLimit(Number(draft.dailyLimit) || 240);
     setWeekdayLimit(Number(draft.weekdayLimit) || 180);
     setWeekendLimit(Number(draft.weekendLimit) || 300);
     setSchoolNightStartMinute(
@@ -388,11 +369,7 @@ export default function TimeLimitsContent({
       if (!user?.id || !selectedChildId) return;
 
       const isManualRefresh = Boolean(options?.isManualRefresh);
-      if (isManualRefresh) {
-        setDailyRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      setLoading(true);
 
       setError('');
       if (isManualRefresh) {
@@ -417,7 +394,6 @@ export default function TimeLimitsContent({
 
         const payload: {
           timeLimit?: {
-            dailyLimit: number;
             weekdayLimit: number;
             weekendLimit: number;
             sessionLimit: number;
@@ -443,7 +419,6 @@ export default function TimeLimitsContent({
 
         const limit = payload.timeLimit;
         if (limit) {
-          setDailyLimit(limit.dailyLimit ?? 240);
           setWeekdayLimit(limit.weekdayLimit ?? 180);
           setWeekendLimit(limit.weekendLimit ?? 300);
           setSessionLimit(limit.sessionLimit ?? 60);
@@ -489,7 +464,7 @@ export default function TimeLimitsContent({
 
         if (isManualRefresh) {
           setSuccess(
-            options?.manualSuccessMessage ?? 'Daily time limit refreshed from server (extension-synced).'
+            options?.manualSuccessMessage ?? 'Time limits refreshed from server (extension-synced).'
           );
         }
       } catch (err) {
@@ -499,7 +474,6 @@ export default function TimeLimitsContent({
           if (user?.id && selectedChildId && typeof window !== 'undefined') {
             window.localStorage.removeItem(getDraftKey(user.id, selectedChildId));
           }
-          setDailyLimit(240);
           setWeekdayLimit(180);
           setWeekendLimit(300);
           setSchoolNightStartMinute(DEFAULT_BEDTIME_SCHEDULE.schoolNightStartMinute);
@@ -519,7 +493,6 @@ export default function TimeLimitsContent({
         hydratedChildRef.current = selectedChildId;
       } finally {
         setLoading(false);
-        setDailyRefreshing(false);
       }
     },
     [defaultAppLimits, defaultCategoryLimits, selectedChildId, user?.id]
@@ -546,7 +519,6 @@ export default function TimeLimitsContent({
         body: JSON.stringify({
           childId: selectedChildId,
           timeLimit: {
-            dailyLimit,
             weekdayLimit,
             weekendLimit,
             sessionLimit,
@@ -579,7 +551,6 @@ export default function TimeLimitsContent({
       }
       setSuccess(silent ? 'Auto-saved to server.' : 'Saved to server.');
       const draft: TimeLimitsDraft = {
-        dailyLimit,
         weekdayLimit,
         weekendLimit,
         schoolNightStartMinute,
@@ -609,7 +580,6 @@ export default function TimeLimitsContent({
     breakDuration,
     breakEvery,
     categoryLimits,
-    dailyLimit,
     downtimeEnabled,
     focusMode,
     schoolNightEndMinute,
@@ -627,46 +597,6 @@ export default function TimeLimitsContent({
     await saveToServer(false);
   };
 
-  const handleDailyRefresh = async () => {
-    if (!selectedChildId) return;
-
-    setDailyRefreshing(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const resetResponse = await fetch(withApiBase('/api/timelimits'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          childId: selectedChildId,
-          action: 'RESET_DAILY_TIMER'
-        })
-      });
-
-      if (!resetResponse.ok) {
-        let message = 'Failed to reset daily timer.';
-        try {
-          const payload = await resetResponse.json();
-          if (payload?.error) message = String(payload.error);
-        } catch {
-          // ignore
-        }
-        throw new Error(message);
-      }
-
-      await loadLimitsFromServer({
-        isManualRefresh: true,
-        manualSuccessMessage: 'Daily timer reset and refreshed from server (extension-synced).'
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to reset daily timer.';
-      setError(message);
-      setDailyRefreshing(false);
-    }
-  };
-
   const checkExtensionInstalled = useCallback(async (options?: { openIfMissing?: boolean }) => {
     setExtensionStatus('checking');
     const installed = await detectSafekidExtensionInstalled();
@@ -678,11 +608,6 @@ export default function TimeLimitsContent({
     return installed;
   }, []);
 
-  const openInstallExtensionDebug = () => {
-    setShowInstallExtension(true);
-    void checkExtensionInstalled();
-  };
-
   useEffect(() => {
     if (!selectedChildId || !hydrated || loading) return;
     if (extensionAutoPromptedChildRef.current === selectedChildId) return;
@@ -693,7 +618,6 @@ export default function TimeLimitsContent({
   useEffect(() => {
     if (!user?.id || !selectedChildId || !hydrated) return;
     const draft: TimeLimitsDraft = {
-      dailyLimit,
       weekdayLimit,
       weekendLimit,
       schoolNightStartMinute,
@@ -716,7 +640,6 @@ export default function TimeLimitsContent({
     breakDuration,
     breakEvery,
     categoryLimits,
-    dailyLimit,
     downtimeEnabled,
     focusMode,
     hydrated,
@@ -770,65 +693,6 @@ export default function TimeLimitsContent({
             </option>
           ))}
         </select>
-      </div>
-
-      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm md:text-base font-semibold text-gray-900">Daily Time Limit</h3>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <button
-              onClick={() => {
-                void handleDailyRefresh();
-              }}
-              disabled={dailyRefreshing || loading || !selectedChildId}
-              className="w-full sm:w-auto rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-            >
-              {dailyRefreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-            <button
-              onClick={openInstallExtensionDebug}
-              className="w-full sm:w-auto rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 cursor-pointer"
-            >
-              Show Install Extension
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-xl md:text-2xl font-bold text-gray-900">{formatDurationFull(dailyLimit)}</p>
-            <p className="text-sm text-gray-600">Maximum daily screen time</p>
-          </div>
-          <Clock className="w-9 h-9 md:w-10 md:h-10 text-blue-500" />
-        </div>
-        <div className="flex items-end gap-3">
-          <label className="flex-1">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-              Hour
-            </span>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={dailyParts.hours}
-              onChange={(event) => updateDailyLimitPart('hours', Number(event.target.value))}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </label>
-          <label className="flex-1">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-              Minute
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={59}
-              step={1}
-              value={dailyParts.minutes}
-              onChange={(event) => updateDailyLimitPart('minutes', Number(event.target.value))}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </label>
-        </div>
       </div>
 
       <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
