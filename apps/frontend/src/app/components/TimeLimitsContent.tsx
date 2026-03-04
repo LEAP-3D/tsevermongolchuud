@@ -2,10 +2,8 @@
 /* eslint-disable max-lines */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
 import { useAuthUser } from '@/lib/auth';
 import { withApiBase } from "@/lib/apiBase";
-import { detectSafekidExtensionInstalled, type ExtensionStatus } from '@/lib/extensionDetection';
 
 type LimitItem = { id: number; name: string; minutes: number };
 
@@ -113,7 +111,6 @@ export default function TimeLimitsContent({
   const { user } = useAuthUser();
   const skipNextAutoSaveRef = useRef(true);
   const isSavingRef = useRef(false);
-  const extensionAutoPromptedChildRef = useRef<number | null>(null);
   const hydratedChildRef = useRef<number | null>(null);
   const [weekdayLimit, setWeekdayLimit] = useState(180);
   const [weekendLimit, setWeekendLimit] = useState(300);
@@ -178,8 +175,6 @@ export default function TimeLimitsContent({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [hydrated, setHydrated] = useState(false);
-  const [showInstallExtension, setShowInstallExtension] = useState(false);
-  const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>('not-installed');
 
   const toHourMinute = (minutesValue: number) => {
     const safeMinutes = Math.max(0, Math.round(minutesValue));
@@ -464,7 +459,7 @@ export default function TimeLimitsContent({
 
         if (isManualRefresh) {
           setSuccess(
-            options?.manualSuccessMessage ?? 'Time limits refreshed from server (extension-synced).'
+            options?.manualSuccessMessage ?? 'Time limits refreshed from server.'
           );
         }
       } catch (err) {
@@ -597,24 +592,6 @@ export default function TimeLimitsContent({
     await saveToServer(false);
   };
 
-  const checkExtensionInstalled = useCallback(async (options?: { openIfMissing?: boolean }) => {
-    setExtensionStatus('checking');
-    const installed = await detectSafekidExtensionInstalled();
-    const nextStatus: ExtensionStatus = installed ? 'installed' : 'not-installed';
-    setExtensionStatus(nextStatus);
-    if (!installed && options?.openIfMissing) {
-      setShowInstallExtension(true);
-    }
-    return installed;
-  }, []);
-
-  useEffect(() => {
-    if (!selectedChildId || !hydrated || loading) return;
-    if (extensionAutoPromptedChildRef.current === selectedChildId) return;
-    extensionAutoPromptedChildRef.current = selectedChildId;
-    void checkExtensionInstalled({ openIfMissing: true });
-  }, [checkExtensionInstalled, hydrated, loading, selectedChildId]);
-
   useEffect(() => {
     if (!user?.id || !selectedChildId || !hydrated) return;
     const draft: TimeLimitsDraft = {
@@ -667,7 +644,6 @@ export default function TimeLimitsContent({
   }, [hydrated, loading, saveToServer, selectedChildId, user?.id]);
 
   return (
-    <>
       <div className="space-y-5">
       <div>
         <h1 className="text-xl md:text-3xl font-semibold text-gray-900 mb-1">Screen Time Limits</h1>
@@ -903,71 +879,5 @@ export default function TimeLimitsContent({
         </button>
       </div>
     </div>
-    {showInstallExtension && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-        <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <div>
-              <h4 className="text-lg font-semibold text-slate-900">Install Browser Extension</h4>
-              <p className="text-sm text-slate-600">
-                Extension is required for live tracking and enforcement.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowInstallExtension(false)}
-              className="h-9 w-9 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
-              aria-label="Close extension setup"
-            >
-              <X className="mx-auto h-4 w-4" />
-            </button>
-          </div>
-          <div className="space-y-4 px-5 py-4">
-            <div
-              className={`rounded-lg border px-3 py-2 text-sm ${
-                extensionStatus === 'installed'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : extensionStatus === 'not-installed'
-                    ? 'border-amber-200 bg-amber-50 text-amber-700'
-                    : 'border-slate-200 bg-slate-50 text-slate-600'
-              }`}
-            >
-              {extensionStatus === 'installed' && 'Extension detected in this browser.'}
-              {extensionStatus === 'not-installed' &&
-                'Extension not detected. Install it, then click Re-check.'}
-              {extensionStatus === 'checking' && 'Checking extension status...'}
-            </div>
-
-            <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
-              <li>Open <code>chrome://extensions</code></li>
-              <li>Enable <strong>Developer mode</strong></li>
-              <li>
-                Click <strong>Load unpacked</strong> and select{" "}
-                <code>/Users/25LP5321/Desktop/safe-kid/extantion/extension-tustai/chrome-extension</code>
-              </li>
-            </ol>
-          </div>
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
-            <button
-              type="button"
-              onClick={() => setShowInstallExtension(false)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void checkExtensionInstalled();
-              }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-            >
-              Re-check Extension
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-    </>
   );
 }
