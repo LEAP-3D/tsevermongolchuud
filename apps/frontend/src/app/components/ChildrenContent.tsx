@@ -6,6 +6,7 @@ import { Copy, Plus, X } from 'lucide-react';
 import type { Child } from './types';
 import AddChildModal from './AddChildModal';
 import { withApiBase } from "@/lib/apiBase";
+import { getExtensionStoreUrl } from "@/lib/extensionStore";
 
 type JumpTab = 'dashboard' | 'time-limits' | 'blocking' | 'settings';
 
@@ -43,6 +44,7 @@ export default function ChildrenContent({
   onRenamedChild,
   onJumpToSection,
 }: ChildrenContentProps) {
+  const extensionStoreUrl = getExtensionStoreUrl();
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [weekdayWeekendLimitLabel, setWeekdayWeekendLimitLabel] = useState('--');
   const [weekdayWeekendLoading, setWeekdayWeekendLoading] = useState(false);
@@ -298,11 +300,20 @@ export default function ChildrenContent({
           Parent panel can be used without extension. Install this only on the child&apos;s browser if you want
           live browser tracking/enforcement there.
         </p>
+        <div className="mt-3">
+          <a
+            href={extensionStoreUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 md:text-sm"
+          >
+            Open Chrome Web Store
+          </a>
+        </div>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs md:text-sm text-gray-700">
-          <li>Open <code>chrome://extensions</code> on the child&apos;s Chrome browser.</li>
-          <li>Enable <strong>Developer mode</strong>.</li>
-          <li>Click <strong>Load unpacked</strong> and select <code>extension-tustai/chrome-extension</code>.</li>
-          <li>Enter the child PIN from this page to finish pairing.</li>
+          <li>Install the Safe-kid extension from Chrome Web Store on the child&apos;s browser.</li>
+          <li>Open the extension and enter the child PIN shown in this dashboard.</li>
+          <li>Start monitoring usage and adjust limits anytime.</li>
         </ol>
       </div>
 

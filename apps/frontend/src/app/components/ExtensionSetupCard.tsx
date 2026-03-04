@@ -1,53 +1,36 @@
 "use client";
 
 type ExtensionSetupCardProps = {
-  extensionStatus: "checking" | "installed" | "not-installed";
-  onRecheck: () => void;
+  storeUrl: string;
   onContinue: () => void;
 };
 
 export default function ExtensionSetupCard({
-  extensionStatus,
-  onRecheck,
+  storeUrl,
   onContinue,
 }: ExtensionSetupCardProps) {
   return (
     <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <h3 className="text-base font-semibold text-slate-900">Install Chrome Extension</h3>
+      <h3 className="text-base font-semibold text-slate-900">Install the Safe-kid extension</h3>
       <p className="text-sm text-slate-600">
-        Before using parental controls, install and enable the SafeKid extension in this browser.
+        The extension runs in the child browser to capture visited URLs and usage time, then syncs
+        it with the parent dashboard.
       </p>
       <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
-        <li>Open <code>chrome://extensions</code></li>
-        <li>Enable <strong>Developer mode</strong></li>
-        <li>
-          Click <strong>Load unpacked</strong> and select{" "}
-          <code>/Users/25LP6386/Desktop/tsevermongolchuud/apps/chrome-extension</code>
-        </li>
+        <li>Install the extension in the child browser.</li>
+        <li>Enter the child PIN shown in the dashboard.</li>
+        <li>Start monitoring usage and adjust limits anytime.</li>
       </ol>
 
-      <div
-        className={`rounded-lg border px-3 py-2 text-sm ${
-          extensionStatus === "installed"
-            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-            : extensionStatus === "not-installed"
-              ? "border-amber-200 bg-amber-50 text-amber-700"
-              : "border-slate-200 bg-white text-slate-600"
-        }`}
-      >
-        {extensionStatus === "installed" && "Extension detected in this browser."}
-        {extensionStatus === "not-installed" && "Extension not detected yet. Install it, then click Re-check."}
-        {extensionStatus === "checking" && "Checking extension status..."}
-      </div>
-
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={onRecheck}
-          className="h-11 rounded-xl border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+        <a
+          href={storeUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
         >
-          Re-check Extension
-        </button>
+          Open Chrome Web Store
+        </a>
         <button
           type="button"
           onClick={onContinue}

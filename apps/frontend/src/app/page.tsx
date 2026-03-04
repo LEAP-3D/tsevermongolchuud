@@ -5,10 +5,11 @@ import LandingInstall from "./components/landing/LandingInstall";
 import LandingHow from "./components/landing/LandingHow";
 import LandingCta from "./components/landing/LandingCta";
 import LandingFooter from "./components/landing/LandingFooter";
+import { getExtensionStoreUrl } from "@/lib/extensionStore";
 
 const bodyFamily = '"Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
 
-const STORE_URL = process.env.NEXT_PUBLIC_EXTENSION_STORE_URL ?? "";
+const STORE_URL = getExtensionStoreUrl();
 const hasStoreUrl = /^https?:\/\//i.test(STORE_URL);
 
 export default function LandingPage() {
