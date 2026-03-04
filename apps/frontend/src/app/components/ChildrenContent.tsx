@@ -44,9 +44,9 @@ export default function ChildrenContent({
   onJumpToSection,
 }: ChildrenContentProps) {
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
-  const [dailyLimitLabel, setDailyLimitLabel] = useState('--');
-  const [dailyLimitLoading, setDailyLimitLoading] = useState(false);
-  const [dailyLimitError, setDailyLimitError] = useState('');
+  const [weekdayWeekendLimitLabel, setWeekdayWeekendLimitLabel] = useState('--');
+  const [weekdayWeekendLoading, setWeekdayWeekendLoading] = useState(false);
+  const [weekdayWeekendError, setWeekdayWeekendError] = useState('');
   const [renameValue, setRenameValue] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState('');
@@ -63,16 +63,16 @@ export default function ChildrenContent({
 
   useEffect(() => {
     if (!selectedChildId) {
-      setDailyLimitLabel('--');
-      setDailyLimitError('');
-      setDailyLimitLoading(false);
+      setWeekdayWeekendLimitLabel('--');
+      setWeekdayWeekendError('');
+      setWeekdayWeekendLoading(false);
       return;
     }
 
     let cancelled = false;
-    const loadDailyLimit = async () => {
-      setDailyLimitLoading(true);
-      setDailyLimitError('');
+    const loadWeekdayWeekendLimits = async () => {
+      setWeekdayWeekendLoading(true);
+      setWeekdayWeekendError('');
       try {
         const response = await fetch(
           withApiBase(`/api/timelimits?childId=${selectedChildId}`),
@@ -82,7 +82,7 @@ export default function ChildrenContent({
           },
         );
         if (!response.ok) {
-          let message = 'Failed to load daily limit.';
+          let message = 'Failed to load weekday/weekend limits.';
           try {
             const payload = await response.json();
             if (payload?.error) message = String(payload.error);
@@ -92,29 +92,36 @@ export default function ChildrenContent({
           throw new Error(message);
         }
 
-        const payload: { timeLimit?: { dailyLimit?: number } | null } = await response.json();
-        const dailyLimitMinutes = Number(payload?.timeLimit?.dailyLimit);
+        const payload: {
+          timeLimit?: { weekdayLimit?: number; weekendLimit?: number } | null;
+        } = await response.json();
+        const weekdayLimitMinutes = Number(payload?.timeLimit?.weekdayLimit);
+        const weekendLimitMinutes = Number(payload?.timeLimit?.weekendLimit);
         if (!cancelled) {
-          if (Number.isFinite(dailyLimitMinutes) && dailyLimitMinutes > 0) {
-            setDailyLimitLabel(formatLimit(dailyLimitMinutes));
+          const hasWeekday = Number.isFinite(weekdayLimitMinutes) && weekdayLimitMinutes > 0;
+          const hasWeekend = Number.isFinite(weekendLimitMinutes) && weekendLimitMinutes > 0;
+          if (hasWeekday || hasWeekend) {
+            const weekdayLabel = hasWeekday ? formatLimit(weekdayLimitMinutes) : '--';
+            const weekendLabel = hasWeekend ? formatLimit(weekendLimitMinutes) : '--';
+            setWeekdayWeekendLimitLabel(`Weekday ${weekdayLabel} / Weekend ${weekendLabel}`);
           } else {
-            setDailyLimitLabel('--');
+            setWeekdayWeekendLimitLabel('--');
           }
         }
       } catch (err) {
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : 'Failed to load daily limit.';
-          setDailyLimitError(message);
-          setDailyLimitLabel('--');
+          const message = err instanceof Error ? err.message : 'Failed to load weekday/weekend limits.';
+          setWeekdayWeekendError(message);
+          setWeekdayWeekendLimitLabel('--');
         }
       } finally {
         if (!cancelled) {
-          setDailyLimitLoading(false);
+          setWeekdayWeekendLoading(false);
         }
       }
     };
 
-    void loadDailyLimit();
+    void loadWeekdayWeekendLimits();
     return () => {
       cancelled = true;
     };
@@ -332,12 +339,12 @@ export default function ChildrenContent({
                   onClick={() => jumpFromModal('time-limits')}
                   className="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-800 hover:underline"
                 >
-                  Daily Screen Time
+                  Weekday / Weekend Limits
                 </button>
                 <p className="text-lg font-semibold text-gray-900">
-                  {dailyLimitLoading ? 'Loading...' : dailyLimitLabel}
+                  {weekdayWeekendLoading ? 'Loading...' : weekdayWeekendLimitLabel}
                 </p>
-                {dailyLimitError && <p className="mt-1 text-xs text-red-600">{dailyLimitError}</p>}
+                {weekdayWeekendError && <p className="mt-1 text-xs text-red-600">{weekdayWeekendError}</p>}
               </div>
               <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 <button
