@@ -1,12 +1,11 @@
 "use client";
 
-import { type AuthUser } from "@/lib/auth";
 import { withApiBase } from "@/lib/apiBase";
 import { type FormEvent, useState } from "react";
 import PasswordField from "./PasswordField";
 
 type SignUpFormProps = {
-  onSuccess: (user: AuthUser) => void;
+  onSuccess: (payload: { email: string }) => void;
 };
 
 export default function SignUpForm({ onSuccess }: SignUpFormProps) {
@@ -48,21 +47,35 @@ export default function SignUpForm({ onSuccess }: SignUpFormProps) {
 
       if (!response.ok) {
         let message = "Sign up failed. Please try again.";
+        const responseClone = response.clone();
         try {
           const payload = await response.json();
           if (payload?.error) {
             message = String(payload.error);
           }
         } catch {
-          // ignore JSON parse errors
+          try {
+            const text = await responseClone.text();
+            const contentType = response.headers.get("content-type") ?? "";
+            if (contentType.includes("text/html")) {
+              message =
+                "Sign-up API returned HTML instead of JSON. Check NEXT_PUBLIC_API_BASE_URL (should be empty for same-app APIs) and restart/redeploy.";
+            } else if (text) {
+              message = text.slice(0, 220);
+            }
+          } catch {
+            // ignore fallback parse errors
+          }
         }
         throw new Error(message);
       }
 
-      const payload: { user?: AuthUser } = await response.json();
-      if (payload?.user) {
-        onSuccess(payload.user);
+      const payload: { email?: string; user?: { email?: string } } = await response.json();
+      const resolvedEmail = payload?.email ?? payload?.user?.email;
+      if (!resolvedEmail) {
+        throw new Error("Sign up succeeded but verification details are missing.");
       }
+      onSuccess({ email: resolvedEmail });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Sign up failed. Please try again.";
       setFormError(message);

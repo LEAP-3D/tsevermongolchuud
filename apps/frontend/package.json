@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "npm run db:generate",
-    "db:generate": "prisma generate --schema ../../prisma/schema.prisma",
+    "db:generate": "prisma generate --schema ../../prisma/schema.prisma && node scripts/sync-prisma-client.cjs",
     "dev": "next dev -p 3000",
     "build": "npm run lint && next build --webpack",
     "start": "next start",
@@ -14,15 +14,17 @@
     "db:studio": "prisma studio --schema ../../prisma/schema.prisma"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.2",
     "axios": "^1.13.5",
     "next": "^16.1.6",
+    "nodemailer": "^7.0.13",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "@prisma/client": "^6.19.2"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^20",
+    "@types/nodemailer": "^6.4.23",
     "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
