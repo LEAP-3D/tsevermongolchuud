@@ -290,6 +290,22 @@ export default function ChildrenContent({
         </div>
       </div>
 
+      <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
+        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-2">
+          Child Browser Extension Setup (Optional)
+        </h3>
+        <p className="text-xs md:text-sm text-gray-600">
+          Parent panel can be used without extension. Install this only on the child&apos;s browser if you want
+          live browser tracking/enforcement there.
+        </p>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs md:text-sm text-gray-700">
+          <li>Open <code>chrome://extensions</code> on the child&apos;s Chrome browser.</li>
+          <li>Enable <strong>Developer mode</strong>.</li>
+          <li>Click <strong>Load unpacked</strong> and select <code>extension-tustai/chrome-extension</code>.</li>
+          <li>Enter the child PIN from this page to finish pairing.</li>
+        </ol>
+      </div>
+
       {showAddChild && (
         <AddChildModal
           generatedPin={generatedPin}
