@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export const DEFAULT_FREE_MAX_CHILDREN = 1;
@@ -13,12 +14,15 @@ export type DefaultSubscriptionPlan = {
   sortOrder: number;
 };
 
+// Demo pricing: keep temporary low amount for payment flow verification.
+const DEMO_PRICE_MNT = 100;
+
 export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
   {
     code: "PLUS_2_5_1M",
     name: "Plus 2-5 Children (1 Month)",
     description: "For families with up to 5 children.",
-    priceMnt: 20_000,
+    priceMnt: DEMO_PRICE_MNT,
     durationMonths: 1,
     maxChildren: 5,
     aiAgentEnabled: true,
@@ -28,7 +32,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "PLUS_2_5_6M",
     name: "Plus 2-5 Children (6 Months)",
     description: "For families with up to 5 children.",
-    priceMnt: 120_000,
+    priceMnt: DEMO_PRICE_MNT,
     durationMonths: 6,
     maxChildren: 5,
     aiAgentEnabled: true,
@@ -38,7 +42,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "PLUS_2_5_12M",
     name: "Plus 2-5 Children (12 Months)",
     description: "For families with up to 5 children.",
-    priceMnt: 240_000,
+    priceMnt: DEMO_PRICE_MNT,
     durationMonths: 12,
     maxChildren: 5,
     aiAgentEnabled: true,
@@ -48,7 +52,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "FAMILY_5P_1M",
     name: "Family 5+ Children (1 Month)",
     description: "For larger families (5+ children).",
-    priceMnt: 30_000,
+    priceMnt: DEMO_PRICE_MNT,
     durationMonths: 1,
     maxChildren: 50,
     aiAgentEnabled: true,
@@ -58,7 +62,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "FAMILY_5P_6M",
     name: "Family 5+ Children (6 Months)",
     description: "For larger families (5+ children).",
-    priceMnt: 180_000,
+    priceMnt: DEMO_PRICE_MNT,
     durationMonths: 6,
     maxChildren: 50,
     aiAgentEnabled: true,
@@ -68,7 +72,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "FAMILY_5P_12M",
     name: "Family 5+ Children (12 Months)",
     description: "For larger families (5+ children).",
-    priceMnt: 360_000,
+    priceMnt: DEMO_PRICE_MNT,
     durationMonths: 12,
     maxChildren: 50,
     aiAgentEnabled: true,
@@ -79,35 +83,45 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
 let lastPlanSyncAt = 0;
 const PLAN_SYNC_INTERVAL_MS = 60_000;
 
+const isBillingSchemaMissingError = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  (error.code === "P2021" || error.code === "P2022");
+
 export const ensureDefaultSubscriptionPlans = async () => {
   const now = Date.now();
   if (now - lastPlanSyncAt < PLAN_SYNC_INTERVAL_MS) return;
-
-  for (const plan of DEFAULT_SUBSCRIPTION_PLANS) {
-    await prisma.subscriptionPlan.upsert({
-      where: { code: plan.code },
-      create: {
-        code: plan.code,
-        name: plan.name,
-        description: plan.description,
-        priceMnt: plan.priceMnt,
-        durationMonths: plan.durationMonths,
-        maxChildren: plan.maxChildren,
-        aiAgentEnabled: plan.aiAgentEnabled,
-        sortOrder: plan.sortOrder,
-      },
-      update: {
-        name: plan.name,
-        description: plan.description,
-        priceMnt: plan.priceMnt,
-        durationMonths: plan.durationMonths,
-        maxChildren: plan.maxChildren,
-        aiAgentEnabled: plan.aiAgentEnabled,
-        sortOrder: plan.sortOrder,
-        active: true,
-      },
-    });
+  try {
+    for (const plan of DEFAULT_SUBSCRIPTION_PLANS) {
+      await prisma.subscriptionPlan.upsert({
+        where: { code: plan.code },
+        create: {
+          code: plan.code,
+          name: plan.name,
+          description: plan.description,
+          priceMnt: plan.priceMnt,
+          durationMonths: plan.durationMonths,
+          maxChildren: plan.maxChildren,
+          aiAgentEnabled: plan.aiAgentEnabled,
+          sortOrder: plan.sortOrder,
+        },
+        update: {
+          name: plan.name,
+          description: plan.description,
+          priceMnt: plan.priceMnt,
+          durationMonths: plan.durationMonths,
+          maxChildren: plan.maxChildren,
+          aiAgentEnabled: plan.aiAgentEnabled,
+          sortOrder: plan.sortOrder,
+          active: true,
+        },
+      });
+    }
+    lastPlanSyncAt = now;
+  } catch (error) {
+    if (isBillingSchemaMissingError(error)) {
+      // Backward-safe fallback until DB schema is synced.
+      return;
+    }
+    throw error;
   }
-
-  lastPlanSyncAt = now;
 };

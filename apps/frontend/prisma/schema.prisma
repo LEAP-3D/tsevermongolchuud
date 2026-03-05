@@ -65,6 +65,7 @@ model Child {
   childCategoryLimits ChildCategoryLimit[]
   childAlwaysAlloweds ChildAlwaysAllowed[]
   childFocusBlockeds  ChildFocusBlocked[]
+  childBedtimeSchedule ChildBedtimeSchedule?
 
   @@index([parentId])
 }
@@ -222,6 +223,20 @@ model ChildFocusBlocked {
   child     Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
 
   @@unique([childId, name])
+  @@index([childId])
+}
+
+model ChildBedtimeSchedule {
+  id                     Int      @id @default(autoincrement())
+  childId                Int      @unique
+  schoolNightStartMinute Int      @default(1260)
+  schoolNightEndMinute   Int      @default(420)
+  weekendStartMinute     Int      @default(1320)
+  weekendEndMinute       Int      @default(480)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  child                  Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+
   @@index([childId])
 }
 
