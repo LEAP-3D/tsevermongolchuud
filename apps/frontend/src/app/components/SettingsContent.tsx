@@ -20,11 +20,7 @@ export default function SettingsContent({
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [weeklyReports, setWeeklyReports] = useState(true);
   const [realtimeAlerts, setRealtimeAlerts] = useState(true);
-  const [activeSecurityModal, setActiveSecurityModal] = useState<null | "password" | "2fa" | "export">(null);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [helpType, setHelpType] = useState<"Suggestion" | "Request" | "Other">("Suggestion");
-  const [helpMessage, setHelpMessage] = useState("");
-  const [helpPhone, setHelpPhone] = useState("");
+  const [activeSecurityModal, setActiveSecurityModal] = useState<null | "password">(null);
   const [children, setChildren] = useState<Child[]>([]);
   const [childrenLoading, setChildrenLoading] = useState(false);
   const [childrenError, setChildrenError] = useState("");
@@ -247,25 +243,6 @@ export default function SettingsContent({
     }
   };
 
-  const resetHelpForm = () => {
-    setHelpType("Suggestion");
-    setHelpMessage("");
-    setHelpPhone("");
-  };
-
-  const closeHelpModal = () => {
-    setShowHelpModal(false);
-    resetHelpForm();
-  };
-
-  const submitHelpForm = () => {
-    if (!helpMessage.trim()) {
-      return;
-    }
-    setShowHelpModal(false);
-    resetHelpForm();
-  };
-
   const closeSecurityModal = () => {
     setActiveSecurityModal(null);
     setNewPassword("");
@@ -427,20 +404,6 @@ export default function SettingsContent({
             <p className="text-sm font-semibold text-gray-900">Change Password</p>
             <p className="text-xs text-gray-500">Update your account password</p>
           </button>
-          <button
-            onClick={() => setActiveSecurityModal("2fa")}
-            className="w-full text-left p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-          >
-            <p className="text-sm font-semibold text-gray-900">Two-Factor Authentication</p>
-            <p className="text-xs text-gray-500">Add extra security layer</p>
-          </button>
-          <button
-            onClick={() => setActiveSecurityModal("export")}
-            className="w-full text-left p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-          >
-            <p className="text-sm font-semibold text-gray-900">Data Export</p>
-            <p className="text-xs text-gray-500">Download your monitoring data</p>
-          </button>
         </div>
       </div>
 
@@ -491,17 +454,6 @@ export default function SettingsContent({
         </div>
       </div>
 
-      <div className="bg-blue-50 rounded-2xl p-3.5 md:p-5 border border-blue-100">
-        <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">Need Help?</h3>
-        <p className="text-sm text-gray-700 mb-4">Our support team is here to assist you with any questions.</p>
-        <button
-          onClick={() => setShowHelpModal(true)}
-          className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors"
-        >
-          Contact Support
-        </button>
-      </div>
-
       <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">Account</h3>
         <p className="text-sm text-gray-500 mb-4">Sign out or permanently delete your account.</p>
@@ -549,8 +501,6 @@ export default function SettingsContent({
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h4 className="text-lg font-semibold text-gray-900">
                 {activeSecurityModal === "password" && "Change Password"}
-                {activeSecurityModal === "2fa" && "Two-Factor Authentication"}
-                {activeSecurityModal === "export" && "Data Export"}
               </h4>
               <button
                 onClick={closeSecurityModal}
@@ -605,43 +555,6 @@ export default function SettingsContent({
                   </div>
                 </>
               )}
-              {activeSecurityModal === "2fa" && (
-                <>
-                  <p className="text-sm text-gray-600">
-                    Enable two-factor authentication for extra account protection.
-                  </p>
-                  <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700">
-                    Use an authenticator app to scan a QR code and enter the verification code.
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={closeSecurityModal}
-                      className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600">
-                      Enable 2FA
-                    </button>
-                  </div>
-                </>
-              )}
-              {activeSecurityModal === "export" && (
-                <>
-                  <p className="text-sm text-gray-600">Export your monitoring data as a CSV file.</p>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={closeSecurityModal}
-                      className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600">
-                      Download CSV
-                    </button>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -690,71 +603,6 @@ export default function SettingsContent({
         </div>
       )}
 
-      {showHelpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h4 className="text-lg font-semibold text-gray-900">Contact Support</h4>
-              <button
-                onClick={closeHelpModal}
-                className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">Type</label>
-                <select
-                  value={helpType}
-                  onChange={event =>
-                    setHelpType(event.target.value === "Request" ? "Request" : event.target.value === "Other" ? "Other" : "Suggestion")
-                  }
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                >
-                  <option value="Suggestion">Suggestion</option>
-                  <option value="Request">Request</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">Message</label>
-                <textarea
-                  value={helpMessage}
-                  onChange={event => setHelpMessage(event.target.value)}
-                  rows={4}
-                  placeholder="Write your suggestion or request..."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">Contact Number</label>
-                <input
-                  value={helpPhone}
-                  onChange={event => setHelpPhone(event.target.value)}
-                  placeholder="+976 9xxxxxxx"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={closeHelpModal}
-                  className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitHelpForm}
-                  className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600"
-                >
-                  Submit
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

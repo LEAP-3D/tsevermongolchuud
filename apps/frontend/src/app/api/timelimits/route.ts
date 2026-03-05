@@ -2,7 +2,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
-import { filterRestrictedCategories, normalizeCategoryName } from "@/lib/categoryFilters";
+import {
+  dedupeCategoriesByNormalizedName,
+  filterRestrictedCategories,
+  normalizeCategoryName,
+} from "@/lib/categoryFilters";
 
 const TABLE_NOT_FOUND_CODE = "P2021";
 const isPrismaTableMissingError = (error: unknown) =>
@@ -236,6 +240,16 @@ const normalizeBedtimeSchedule = (
     DEFAULT_BEDTIME_SCHEDULE.weekendEndMinute,
   ),
 });
+
+const dedupeLimitItemsByNormalizedName = <T extends { name: string }>(items: T[]) => {
+  const byKey = new Map<string, T>();
+  for (const item of items) {
+    const key = normalizeCategoryName(item.name);
+    if (!key || byKey.has(key)) continue;
+    byKey.set(key, item);
+  }
+  return [...byKey.values()];
+};
 const getBedtimeSchedule = async (childId: number): Promise<BedtimeSchedule> => {
   const rows = await prisma.$queryRawUnsafe<
     Array<{
@@ -407,12 +421,16 @@ export async function GET(req: Request) {
     }
 
     const normalizedTimeLimit = timeLimit ? normalizeTimeLimitRow(timeLimit) : null;
-    const availableCategories = filterRestrictedCategories(catalogCategories ?? []);
+    const availableCategories = dedupeCategoriesByNormalizedName(
+      filterRestrictedCategories(catalogCategories ?? []),
+    );
     const allowedCategoryNames = new Set(
       availableCategories.map((category) => normalizeCategoryName(category.name))
     );
-    const filteredCategoryLimits = (categoryLimits ?? []).filter((item) =>
-      allowedCategoryNames.has(normalizeCategoryName(item.name))
+    const filteredCategoryLimits = dedupeLimitItemsByNormalizedName(
+      (categoryLimits ?? []).filter((item) =>
+        allowedCategoryNames.has(normalizeCategoryName(item.name)),
+      ),
     );
     let bedtimeSchedule = normalizeBedtimeSchedule(null);
     try {
@@ -537,6 +555,17 @@ export async function PUT(req: Request) {
     );
     const storedDailyShadowLimit = Math.max(storedWeekdayLimit, storedWeekendLimit);
 
+    const normalizedCategoryLimits: Array<{ name: string; minutes: number }> =
+      dedupeLimitItemsByNormalizedName(
+        categoryLimits
+          .filter((item: { name?: string; minutes?: number }) => item?.name)
+          .map((item: { name: string; minutes?: number }) => ({
+            name: String(item.name).trim(),
+            minutes: Number(item.minutes ?? 0),
+          }))
+          .filter((item: { name: string; minutes: number }) => item.name.length > 0),
+      );
+
     const persistTimeLimitData = async () =>
       prisma.$transaction([
         prisma.childTimeLimit.upsert({
@@ -579,11 +608,9 @@ export async function PUT(req: Request) {
           skipDuplicates: true,
         }),
         prisma.childCategoryLimit.createMany({
-          data: categoryLimits
-            .filter((item: { name?: string; minutes?: number }) => item?.name)
-            .map((item: { name: string; minutes?: number }) => ({
+          data: normalizedCategoryLimits.map((item) => ({
               childId,
-              name: String(item.name),
+              name: item.name,
               minutes: Number(item.minutes ?? 0),
             })),
           skipDuplicates: true,
