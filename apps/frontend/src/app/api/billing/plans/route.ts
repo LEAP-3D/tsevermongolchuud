@@ -4,14 +4,6 @@ import { getUserChildCapacity } from "@/lib/billing/entitlement";
 import { ensureDefaultSubscriptionPlans } from "@/lib/billing/plans";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
 
-const resolveDemoPriceOverrideMnt = (): number | null => {
-  const rawValue = process.env.BILLING_DEMO_PRICE_MNT?.trim();
-  if (!rawValue) return null;
-  const parsed = Number.parseInt(rawValue, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
-};
-
 export async function GET(req: Request) {
   const session = getSessionFromRequest(req);
   if (!session) {
@@ -39,17 +31,8 @@ export async function GET(req: Request) {
       getUserChildCapacity(session.userId),
     ]);
 
-    const demoPriceOverrideMnt = resolveDemoPriceOverrideMnt();
-    const responsePlans =
-      demoPriceOverrideMnt === null
-        ? plans
-        : plans.map((plan) => ({
-            ...plan,
-            priceMnt: demoPriceOverrideMnt,
-          }));
-
     return NextResponse.json({
-      plans: responsePlans,
+      plans,
       summary: {
         isPaid: capacity.entitlement.isPaid,
         maxChildren: capacity.entitlement.maxChildren,

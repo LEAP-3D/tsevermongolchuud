@@ -14,15 +14,12 @@ export type DefaultSubscriptionPlan = {
   sortOrder: number;
 };
 
-// Demo pricing: keep temporary low amount for payment flow verification.
-const DEMO_PRICE_MNT = 100;
-
 export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
   {
     code: "PLUS_2_5_1M",
     name: "Plus 2-5 Children (1 Month)",
     description: "For families with up to 5 children.",
-    priceMnt: DEMO_PRICE_MNT,
+    priceMnt: 5000,
     durationMonths: 1,
     maxChildren: 5,
     aiAgentEnabled: true,
@@ -32,7 +29,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "PLUS_2_5_6M",
     name: "Plus 2-5 Children (6 Months)",
     description: "For families with up to 5 children.",
-    priceMnt: DEMO_PRICE_MNT,
+    priceMnt: 25000,
     durationMonths: 6,
     maxChildren: 5,
     aiAgentEnabled: true,
@@ -42,7 +39,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "PLUS_2_5_12M",
     name: "Plus 2-5 Children (12 Months)",
     description: "For families with up to 5 children.",
-    priceMnt: DEMO_PRICE_MNT,
+    priceMnt: 45000,
     durationMonths: 12,
     maxChildren: 5,
     aiAgentEnabled: true,
@@ -52,7 +49,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "FAMILY_5P_1M",
     name: "Family 5+ Children (1 Month)",
     description: "For larger families (5+ children).",
-    priceMnt: DEMO_PRICE_MNT,
+    priceMnt: 8000,
     durationMonths: 1,
     maxChildren: 50,
     aiAgentEnabled: true,
@@ -62,7 +59,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "FAMILY_5P_6M",
     name: "Family 5+ Children (6 Months)",
     description: "For larger families (5+ children).",
-    priceMnt: DEMO_PRICE_MNT,
+    priceMnt: 42000,
     durationMonths: 6,
     maxChildren: 50,
     aiAgentEnabled: true,
@@ -72,7 +69,7 @@ export const DEFAULT_SUBSCRIPTION_PLANS: DefaultSubscriptionPlan[] = [
     code: "FAMILY_5P_12M",
     name: "Family 5+ Children (12 Months)",
     description: "For larger families (5+ children).",
-    priceMnt: DEMO_PRICE_MNT,
+    priceMnt: 78000,
     durationMonths: 12,
     maxChildren: 50,
     aiAgentEnabled: true,

@@ -32,6 +32,17 @@ type AssistantModelResponse = {
   actions: AssistantAction[];
 };
 
+const CHILD_SCOPED_ACTION_TYPES = new Set<AssistantAction["type"]>([
+  "BLOCK_DOMAIN",
+  "UNBLOCK_DOMAIN",
+  "BLOCK_CATEGORY",
+  "UNBLOCK_CATEGORY",
+  "SET_CATEGORY_LIMIT",
+  "SET_WEEKDAY_LIMIT",
+  "SET_WEEKEND_LIMIT",
+  "SET_SESSION_LIMIT",
+]);
+
 const ACTION_VERB_REGEX = /\b(block|ban|limit|set|change|update|restrict)\b/i;
 const BLOCK_INTENT_REGEX = /\b(block|ban|restrict)\b/i;
 const LIMIT_INTENT_REGEX = /\b(limit|set|change|update|daily|session|weekday|weekend)\b/i;
@@ -50,6 +61,61 @@ const toSafeMinutes = (value: unknown, fallbackMinutes: number) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallbackMinutes;
   return Math.max(1, Math.round(numeric));
+};
+
+const hasAllChildrenIntent = (message: string) => {
+  const text = message.toLowerCase();
+  return (
+    /\b(all|every|each)\s+(child|children|kid|kids)\b/i.test(text) ||
+    /\b(buh|bugd|bugdiin)\b.*\b(huuhed|huuheduud|huuhduud)\b/i.test(text) ||
+    /бүх\s+хүүхд/i.test(message)
+  );
+};
+
+const hasSpecificChildMention = (message: string, children: Array<{ id: number; name: string }>) => {
+  const loweredMessage = message.toLowerCase();
+  return children.some((child) => {
+    const childName = child.name.trim().toLowerCase();
+    return childName.length > 0 && loweredMessage.includes(childName);
+  });
+};
+
+const dedupeActions = (actions: AssistantAction[]) => {
+  const byKey = new Map<string, AssistantAction>();
+  for (const action of actions) {
+    const key = JSON.stringify(action);
+    if (!byKey.has(key)) {
+      byKey.set(key, action);
+    }
+  }
+  return [...byKey.values()];
+};
+
+const expandActionsForAllChildren = (
+  actions: AssistantAction[],
+  children: Array<{ id: number; name: string }>,
+  message: string,
+) => {
+  if (!hasAllChildrenIntent(message) || hasSpecificChildMention(message, children)) {
+    return actions;
+  }
+
+  const expanded: AssistantAction[] = [];
+  for (const action of actions) {
+    if (!CHILD_SCOPED_ACTION_TYPES.has(action.type)) {
+      expanded.push(action);
+      continue;
+    }
+
+    for (const child of children) {
+      expanded.push({
+        ...action,
+        childId: child.id,
+        childName: child.name,
+      });
+    }
+  }
+  return dedupeActions(expanded);
 };
 
 const getOrCreateCategoryByName = async (name: string) => {
@@ -364,6 +430,8 @@ const fallbackAssistant = (
   selectedChildId: number | null,
 ): AssistantModelResponse => {
   const text = message.toLowerCase();
+  const allChildrenRequested =
+    hasAllChildrenIntent(message) && !hasSpecificChildMention(message, context.children);
   const numeric = text.match(/(\d{2,3})\s*(min|minute|minutes|m)\b/i);
   const domainMatch = text.match(/\b([a-z0-9-]+\.)+[a-z]{2,}\b/i);
   const categoryName = extractCategoryNameFromText(message);
@@ -377,14 +445,18 @@ const fallbackAssistant = (
 
   if (unblockIntentRegex.test(text) && domainMatch) {
     return {
-      reply: `I can allow ${domainMatch[0]}. Please confirm and I will apply it to the selected child (or specify child name).`,
+      reply: allChildrenRequested
+        ? `I can allow ${domainMatch[0]} for all children. Please confirm and I will apply it.`
+        : `I can allow ${domainMatch[0]}. Please confirm and I will apply it to the selected child (or specify child name).`,
       actions: [{ type: "UNBLOCK_DOMAIN", domain: domainMatch[0] }],
     };
   }
 
   if (BLOCK_INTENT_REGEX.test(text) && domainMatch) {
     return {
-      reply: `I can block ${domainMatch[0]}. Please confirm and I will apply it to the selected child (or specify child name).`,
+      reply: allChildrenRequested
+        ? `I can block ${domainMatch[0]} for all children. Please confirm and I will apply it.`
+        : `I can block ${domainMatch[0]}. Please confirm and I will apply it to the selected child (or specify child name).`,
       actions: [{ type: "BLOCK_DOMAIN", domain: domainMatch[0] }],
     };
   }
@@ -806,6 +878,7 @@ Rules:
 - Do not invent children not in this list: ${childDescriptor}.
 - Domain must be plain hostname only.
 - For SET_CATEGORY_LIMIT include both categoryName and minutes.
+- If the user asks to apply a control to all children, create actions for all children instead of only the selected child.
 - Keep reply concise and actionable.
 
 Current account summary:
@@ -831,7 +904,10 @@ ${message}`;
       }
     }
 
-    const candidateActions = confirmActions ? actionsToConfirm : (assistantResult?.actions ?? []);
+    const rawCandidateActions = confirmActions ? actionsToConfirm : (assistantResult?.actions ?? []);
+    const candidateActions = confirmActions
+      ? rawCandidateActions
+      : expandActionsForAllChildren(rawCandidateActions, children, message);
     const allowActions = confirmActions || ACTION_VERB_REGEX.test(message);
 
     if (!confirmActions && allowActions && candidateActions.length > 0) {
