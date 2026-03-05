@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { attachSessionCookie, createSessionToken } from "@/lib/session";
 import { hashPassword, isHashedPassword, verifyPassword } from "@/lib/password";
+import { buildEmailVerificationUrl, createEmailVerificationToken } from "@/lib/emailVerification";
+import { sendVerificationEmail } from "@/lib/email";
+import { toEmailUserMessage } from "@/lib/emailErrors";
 
 export async function POST(req: Request) {
   try {
@@ -22,8 +25,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
     if (!user.verified) {
+      let emailSent = false;
+      let emailSendError: string | null = null;
+
+      try {
+        const verification = createEmailVerificationToken({
+          userId: user.id,
+          email: user.email,
+        });
+        const verificationUrl = buildEmailVerificationUrl(verification.token);
+        const result = await sendVerificationEmail({ to: user.email, verificationUrl });
+        emailSent = result.sent;
+      } catch (error) {
+        console.error("[auth:login] verification email send failed", error);
+        emailSendError = toEmailUserMessage(error);
+      }
+
+      const defaultMessage = emailSent
+        ? "Please verify your email before signing in. We sent a verification email. Please check your inbox."
+        : "Please verify your email before signing in.";
+
       return NextResponse.json(
-        { error: "Please verify your email before signing in.", code: "EMAIL_NOT_VERIFIED" },
+        {
+          error: emailSendError ?? defaultMessage,
+          code: "EMAIL_NOT_VERIFIED",
+          emailSent,
+        },
         { status: 403 },
       );
     }

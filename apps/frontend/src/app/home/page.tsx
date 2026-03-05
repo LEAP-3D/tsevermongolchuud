@@ -515,7 +515,15 @@ export default function HomeDashboard() {
     }
   };
 
-  if (!authLoading && !user) {
+  if (authLoading) {
+    return (
+      <TeslaAuthBackdrop>
+        <div className="min-h-screen" />
+      </TeslaAuthBackdrop>
+    );
+  }
+
+  if (!user) {
     return (
       <TeslaAuthBackdrop>
         <div className="min-h-screen flex items-center justify-center px-6">

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 type TeslaAuthLayoutProps = {
-  mode: "signin" | "signup";
+  mode: "signin" | "signup" | "forgot";
   children: ReactNode;
   onModeChange?: (mode: "signin" | "signup") => void;
 };
@@ -66,7 +66,7 @@ export default function TeslaAuthLayout({
                   </Link>
                 </>
               )}
-              <span className="tesla-auth__toggle-indicator" />
+              {mode !== "forgot" && <span className="tesla-auth__toggle-indicator" />}
             </div>
 
             <div className="tesla-auth__form">
@@ -157,7 +157,6 @@ export default function TeslaAuthLayout({
           flex-direction: column;
           justify-content: center;
           padding: 1.5rem 2rem;
-          animation: slideInLeft 0.8s ease-out;
         }
 
         .tesla-auth__title {
@@ -170,7 +169,6 @@ export default function TeslaAuthLayout({
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: fadeInUp 0.8s ease-out 0.2s both;
         }
 
         .tesla-auth__subtitle {
@@ -179,7 +177,6 @@ export default function TeslaAuthLayout({
           color: rgba(15, 23, 42, 0.6);
           max-width: 500px;
           font-weight: 400;
-          animation: fadeInUp 0.8s ease-out 0.4s both;
         }
 
         .tesla-auth__panel {

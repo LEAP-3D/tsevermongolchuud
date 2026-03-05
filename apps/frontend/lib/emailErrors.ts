@@ -8,7 +8,7 @@ export const toEmailUserMessage = (error: unknown): string => {
     text.includes("535") ||
     text.includes("username and password not accepted");
   if (authFailed) {
-    return "We couldn't send the email because the email service login is incorrect. Please contact support.";
+    return "We couldn't send the email right now. Please contact support if this keeps happening.";
   }
 
   const providerUnavailable =
@@ -17,7 +17,7 @@ export const toEmailUserMessage = (error: unknown): string => {
     text.includes("etimedout") ||
     text.includes("socket hang up");
   if (providerUnavailable) {
-    return "We couldn't reach the email service. Please try again in a few minutes.";
+    return "We couldn't send the email right now. Please try again in a few minutes.";
   }
 
   return "We couldn't send the email right now. Please try again later.";

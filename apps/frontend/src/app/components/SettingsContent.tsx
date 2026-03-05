@@ -8,6 +8,8 @@ import type { Child } from "./types";
 import { withApiBase } from "@/lib/apiBase";
 import { clearStoredUser, useAuthUser } from "@/lib/auth";
 
+type NotificationSettingKey = "emailNotifications" | "weeklyReports" | "realtimeAlerts";
+
 export default function SettingsContent({
   preferredChildId = null,
 }: {
@@ -35,7 +37,53 @@ export default function SettingsContent({
   const [passwordUpdateSubmitting, setPasswordUpdateSubmitting] = useState(false);
   const [deleteAccountSubmitting, setDeleteAccountSubmitting] = useState(false);
   const [deleteAccountNotice, setDeleteAccountNotice] = useState("");
+  const [showDeleteAccountWarning, setShowDeleteAccountWarning] = useState(false);
   const [accountError, setAccountError] = useState("");
+  const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false);
+  const [notificationSettingsSaving, setNotificationSettingsSaving] =
+    useState<NotificationSettingKey | null>(null);
+  const [notificationSettingsError, setNotificationSettingsError] = useState("");
+
+  const loadNotificationSettings = useCallback(async () => {
+    if (!user?.id) return;
+    setNotificationSettingsLoading(true);
+    setNotificationSettingsError("");
+    try {
+      const response = await fetch(withApiBase("/api/notification-settings"), {
+        method: "GET",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        let message = "Failed to load notification settings.";
+        try {
+          const payload = await response.json();
+          if (payload?.error) {
+            message = String(payload.error);
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(message);
+      }
+
+      const payload = (await response.json()) as {
+        emailNotifications?: boolean;
+        weeklyReports?: boolean;
+        realtimeAlerts?: boolean;
+      };
+      setEmailNotifications(
+        typeof payload.emailNotifications === "boolean" ? payload.emailNotifications : true,
+      );
+      setWeeklyReports(typeof payload.weeklyReports === "boolean" ? payload.weeklyReports : true);
+      setRealtimeAlerts(typeof payload.realtimeAlerts === "boolean" ? payload.realtimeAlerts : true);
+    } catch (error) {
+      setNotificationSettingsError(
+        error instanceof Error ? error.message : "Failed to load notification settings.",
+      );
+    } finally {
+      setNotificationSettingsLoading(false);
+    }
+  }, [user?.id]);
 
   const loadChildren = useCallback(async () => {
     if (!user?.id) {
@@ -90,6 +138,68 @@ export default function SettingsContent({
   useEffect(() => {
     void loadChildren();
   }, [loadChildren, user?.id]);
+
+  useEffect(() => {
+    void loadNotificationSettings();
+  }, [loadNotificationSettings]);
+
+  const toggleNotificationSetting = async (key: NotificationSettingKey) => {
+    if (notificationSettingsSaving || notificationSettingsLoading) return;
+
+    const previous = {
+      emailNotifications,
+      weeklyReports,
+      realtimeAlerts,
+    };
+    const nextValue = !previous[key];
+    if (key === "emailNotifications") setEmailNotifications(nextValue);
+    if (key === "weeklyReports") setWeeklyReports(nextValue);
+    if (key === "realtimeAlerts") setRealtimeAlerts(nextValue);
+
+    setNotificationSettingsSaving(key);
+    setNotificationSettingsError("");
+    try {
+      const response = await fetch(withApiBase("/api/notification-settings"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ [key]: nextValue }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        emailNotifications?: boolean;
+        weeklyReports?: boolean;
+        realtimeAlerts?: boolean;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to update notification settings.");
+      }
+
+      setEmailNotifications(
+        typeof payload.emailNotifications === "boolean"
+          ? payload.emailNotifications
+          : previous.emailNotifications,
+      );
+      setWeeklyReports(
+        typeof payload.weeklyReports === "boolean" ? payload.weeklyReports : previous.weeklyReports,
+      );
+      setRealtimeAlerts(
+        typeof payload.realtimeAlerts === "boolean"
+          ? payload.realtimeAlerts
+          : previous.realtimeAlerts,
+      );
+    } catch (error) {
+      setEmailNotifications(previous.emailNotifications);
+      setWeeklyReports(previous.weeklyReports);
+      setRealtimeAlerts(previous.realtimeAlerts);
+      setNotificationSettingsError(
+        error instanceof Error ? error.message : "Failed to update notification settings.",
+      );
+    } finally {
+      setNotificationSettingsSaving(null);
+    }
+  };
 
   useEffect(() => {
     if (!preferredChildId) return;
@@ -195,8 +305,8 @@ export default function SettingsContent({
       setConfirmPassword("");
       setPasswordUpdateNotice(
         payload?.emailSent
-          ? "Check your email and click the link to finalize your password change."
-          : "Email delivery is not configured. Check server logs for the password change link.",
+          ? "Password change confirmation email sent. Please check your inbox."
+          : "We couldn't send the email right now. Please try again.",
       );
     } catch (err) {
       setPasswordUpdateError(
@@ -208,11 +318,6 @@ export default function SettingsContent({
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      "Request account deletion? We'll send a confirmation link to your email.",
-    );
-    if (!confirmed) return;
-
     setDeleteAccountSubmitting(true);
     setDeleteAccountNotice("");
     setAccountError("");
@@ -227,9 +332,10 @@ export default function SettingsContent({
       }
       setDeleteAccountNotice(
         payload?.emailSent
-          ? "Check your email and click the link to finalize account deletion."
-          : "Email delivery is not configured. Check server logs for the account deletion link.",
+          ? "Account deletion confirmation email sent. Please check your inbox."
+          : "We couldn't send the email right now. Please try again.",
       );
+      setShowDeleteAccountWarning(false);
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : "Failed to delete account.");
     } finally {
@@ -247,18 +353,33 @@ export default function SettingsContent({
       <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-4">Account Settings</h3>
         <div className="space-y-4">
+          {notificationSettingsLoading && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              Loading notification settings...
+            </div>
+          )}
+          {notificationSettingsError && (
+            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {notificationSettingsError}
+            </div>
+          )}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl">
             <div>
               <p className="text-sm font-semibold text-gray-900">Email Notifications</p>
               <p className="text-xs text-gray-500">Receive alerts via email</p>
             </div>
             <button
-              onClick={() => setEmailNotifications(prev => !prev)}
-              className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg ${
+              onClick={() => void toggleNotificationSetting("emailNotifications")}
+              disabled={notificationSettingsLoading || notificationSettingsSaving !== null}
+              className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg disabled:cursor-not-allowed disabled:opacity-60 ${
                 emailNotifications ? "bg-blue-500 text-white" : "bg-white text-gray-700 border border-gray-200"
               }`}
             >
-              {emailNotifications ? "On" : "Off"}
+              {notificationSettingsSaving === "emailNotifications"
+                ? "Saving..."
+                : emailNotifications
+                  ? "On"
+                  : "Off"}
             </button>
           </div>
 
@@ -268,12 +389,13 @@ export default function SettingsContent({
               <p className="text-xs text-gray-500">Get summary every Monday</p>
             </div>
             <button
-              onClick={() => setWeeklyReports(prev => !prev)}
-              className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg ${
+              onClick={() => void toggleNotificationSetting("weeklyReports")}
+              disabled={notificationSettingsLoading || notificationSettingsSaving !== null}
+              className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg disabled:cursor-not-allowed disabled:opacity-60 ${
                 weeklyReports ? "bg-blue-500 text-white" : "bg-white text-gray-700 border border-gray-200"
               }`}
             >
-              {weeklyReports ? "On" : "Off"}
+              {notificationSettingsSaving === "weeklyReports" ? "Saving..." : weeklyReports ? "On" : "Off"}
             </button>
           </div>
 
@@ -283,12 +405,13 @@ export default function SettingsContent({
               <p className="text-xs text-gray-500">Instant notifications for risks</p>
             </div>
             <button
-              onClick={() => setRealtimeAlerts(prev => !prev)}
-              className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg ${
+              onClick={() => void toggleNotificationSetting("realtimeAlerts")}
+              disabled={notificationSettingsLoading || notificationSettingsSaving !== null}
+              className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-lg disabled:cursor-not-allowed disabled:opacity-60 ${
                 realtimeAlerts ? "bg-blue-500 text-white" : "bg-white text-gray-700 border border-gray-200"
               }`}
             >
-              {realtimeAlerts ? "On" : "Off"}
+              {notificationSettingsSaving === "realtimeAlerts" ? "Saving..." : realtimeAlerts ? "On" : "Off"}
             </button>
           </div>
         </div>
@@ -411,7 +534,7 @@ export default function SettingsContent({
             Log Out
           </button>
           <button
-            onClick={() => void handleDeleteAccount()}
+            onClick={() => setShowDeleteAccountWarning(true)}
             disabled={deleteAccountSubmitting}
             className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-medium rounded-xl border border-red-600 hover:bg-red-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
           >
@@ -519,6 +642,49 @@ export default function SettingsContent({
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteAccountWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h4 className="text-lg font-semibold text-gray-900">Delete Account</h4>
+              <button
+                onClick={() => setShowDeleteAccountWarning(false)}
+                className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                aria-label="Close"
+                disabled={deleteAccountSubmitting}
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-700">
+                This will request permanent account deletion. We will send a confirmation link to your
+                email, and deletion cannot be undone after confirmation.
+              </p>
+              <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                Warning: all child profiles and related activity history will be removed.
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowDeleteAccountWarning(false)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  disabled={deleteAccountSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleDeleteAccount()}
+                  disabled={deleteAccountSubmitting}
+                  className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {deleteAccountSubmitting ? "Sending..." : "Send Delete Link"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
