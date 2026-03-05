@@ -9,7 +9,7 @@ import { ensureDefaultSubscriptionPlans } from "@/lib/billing/plans";
 import {
   createBonumInvoice,
   generateLocalTransactionId,
-  resolveWebhookCallbackUrlForInvoice,
+  resolvePaymentReturnUrlForInvoice,
 } from "@/lib/billing/bonum";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
 
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Selected plan is unavailable." }, { status: 404 });
     }
 
-    const callbackUrl = resolveWebhookCallbackUrlForInvoice(req);
+    const callbackUrl = resolvePaymentReturnUrlForInvoice(req);
     const localTransactionId = generateLocalTransactionId(session.userId);
 
     const pendingSubscription = await prisma.userSubscription.create({

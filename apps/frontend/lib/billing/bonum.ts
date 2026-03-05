@@ -19,7 +19,7 @@ type BonumConfig = {
   acceptLanguage: string;
   defaultInvoiceExpiresInSeconds: number;
   checksumKey: string;
-  webhookCallbackUrl: string;
+  paymentReturnUrl: string;
 };
 
 export type BonumInvoiceCreateInput = {
@@ -56,9 +56,9 @@ const toPositiveInt = (value: string | undefined, fallback: number) => {
 };
 
 const getBonumConfig = (): BonumConfig => {
-  const webhookFromEnv =
-    toClean(process.env.BONUM_WEBHOOK_CALLBACK_URL) ||
-    toClean(process.env.BONUM_WEBHOOK_URL);
+  const returnFromEnv =
+    toClean(process.env.BONUM_PAYMENT_RETURN_URL) ||
+    toClean(process.env.BONUM_CALLBACK_URL);
 
   return {
     apiBaseUrl: trimTrailingSlash(
@@ -73,7 +73,7 @@ const getBonumConfig = (): BonumConfig => {
       DEFAULT_INVOICE_EXPIRES_SECONDS,
     ),
     checksumKey: toClean(process.env.BONUM_MERCHANT_CHECKSUM_KEY),
-    webhookCallbackUrl: webhookFromEnv,
+    paymentReturnUrl: returnFromEnv,
   };
 };
 
@@ -303,8 +303,8 @@ export const createBonumInvoice = async (
 
   const callbackUrl =
     input.callbackUrl?.trim() ||
-    config.webhookCallbackUrl ||
-    "https://example.com/api/billing/webhook/bonum";
+    config.paymentReturnUrl ||
+    "https://example.com/home?billing=returned";
 
   const response = await fetchBonum("/bonum-gateway/ecommerce/invoices", {
     method: "POST",
@@ -397,11 +397,11 @@ export const generateLocalTransactionId = (userId: number) => {
   return `safekid-u${userId}-${nowPart}-${randomPart}`;
 };
 
-export const resolveWebhookCallbackUrlForInvoice = (req: Request): string => {
+export const resolvePaymentReturnUrlForInvoice = (req: Request): string => {
   const config = getBonumConfig();
-  if (config.webhookCallbackUrl) return config.webhookCallbackUrl;
+  if (config.paymentReturnUrl) return config.paymentReturnUrl;
   const base = new URL(req.url);
-  return `${base.origin}/api/billing/webhook/bonum`;
+  return `${base.origin}/home?billing=returned`;
 };
 
 export const parseBonumDate = (value: unknown): Date | null => {
