@@ -22,6 +22,7 @@ export type ChildrenContentProps = {
   onCreatedChild: (child: Child) => void;
   onRenamedChild: (childId: number, name: string) => void;
   onJumpToSection: (tab: JumpTab, childId: number) => void;
+  onSubscriptionRequired?: () => void;
 };
 
 const formatLimit = (minutesValue: number) => {
@@ -43,6 +44,7 @@ export default function ChildrenContent({
   onCreatedChild,
   onRenamedChild,
   onJumpToSection,
+  onSubscriptionRequired,
 }: ChildrenContentProps) {
   const extensionStoreUrl = getExtensionStoreUrl();
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
@@ -324,6 +326,7 @@ export default function ChildrenContent({
           onClose={onCloseAddChild}
           onCopyPin={onCopyPin}
           onCreated={onCreatedChild}
+          onSubscriptionRequired={onSubscriptionRequired}
         />
       )}
 

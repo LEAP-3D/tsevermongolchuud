@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable max-lines */
 
 import { useState } from 'react';
 import { withApiBase } from "@/lib/apiBase";
@@ -12,6 +13,7 @@ export type AddChildModalProps = {
   onClose: () => void;
   onCopyPin: () => void;
   onCreated: (child: Child) => void;
+  onSubscriptionRequired?: () => void;
 };
 
 export default function AddChildModal({
@@ -19,7 +21,8 @@ export default function AddChildModal({
   copiedPin,
   onClose,
   onCopyPin,
-  onCreated
+  onCreated,
+  onSubscriptionRequired,
 }: AddChildModalProps) {
   const { user } = useAuthUser();
   const [name, setName] = useState('');
@@ -66,13 +69,21 @@ export default function AddChildModal({
 
       if (!response.ok) {
         let serverMessage = 'Failed to create child.';
+        let serverCode = '';
         try {
           const payload = await response.json();
           if (payload?.error) {
             serverMessage = String(payload.error);
           }
+          if (payload?.code) {
+            serverCode = String(payload.code);
+          }
         } catch {
           // ignore JSON parse errors
+        }
+        if (response.status === 402 || serverCode === 'SUBSCRIPTION_REQUIRED') {
+          onSubscriptionRequired?.();
+          return;
         }
         console.error('AddChild failed', response.status, serverMessage);
         throw new Error(serverMessage);

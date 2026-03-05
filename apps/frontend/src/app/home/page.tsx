@@ -12,6 +12,10 @@ import TimeLimitsContent from "../components/TimeLimitsContent";
 import ChildrenContent from "../components/ChildrenContent";
 import SettingsContent from "../components/SettingsContent";
 import FloatingAIAssistant from "../components/FloatingAIAssistant";
+import BillingUpgradeModal, {
+  type BillingPlanView,
+  type BillingSummaryView,
+} from "../components/BillingUpgradeModal";
 import type {
   CategorySlice,
   CategoryWebsiteDetail,
@@ -49,6 +53,17 @@ const describeAction = (action: AssistantAction) => {
   return `Set session limit: ${action.minutes ?? "?"}m`;
 };
 
+type BillingPlansPayload = {
+  plans?: BillingPlanView[];
+  summary?: BillingSummaryView;
+  error?: string;
+};
+
+type BillingCheckoutPayload = {
+  checkoutUrl?: string;
+  error?: string;
+};
+
 export default function HomeDashboard() {
   const { user, loading: authLoading } = useAuthUser();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -81,6 +96,12 @@ export default function HomeDashboard() {
   const [chatInput, setChatInput] = useState("");
   const [aiThinking, setAiThinking] = useState(false);
   const [pendingActions, setPendingActions] = useState<AssistantAction[]>([]);
+  const [billingPlans, setBillingPlans] = useState<BillingPlanView[]>([]);
+  const [billingSummary, setBillingSummary] = useState<BillingSummaryView | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState("");
+  const [billingModalOpen, setBillingModalOpen] = useState(false);
+  const [checkingOutPlanCode, setCheckingOutPlanCode] = useState<string | null>(null);
 
   const sendMessage = async (override?: string) => {
     const nextText = (override ?? chatInput).trim();
@@ -228,6 +249,43 @@ export default function HomeDashboard() {
   };
 
   const [children, setChildren] = useState<Child[]>([]);
+
+  const loadBilling = useCallback(async () => {
+    if (!user?.id) {
+      setBillingPlans([]);
+      setBillingSummary(null);
+      setBillingError("");
+      setBillingLoading(false);
+      return;
+    }
+
+    setBillingLoading(true);
+    setBillingError("");
+    try {
+      const response = await fetch(withApiBase("/api/billing/plans"), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as BillingPlansPayload;
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to load billing plans.");
+      }
+      setBillingPlans(Array.isArray(payload?.plans) ? payload.plans : []);
+      setBillingSummary(payload?.summary ?? null);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load billing plans.";
+      setBillingError(message);
+      setBillingPlans([]);
+      setBillingSummary(null);
+    } finally {
+      setBillingLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadBilling();
+  }, [loadBilling]);
 
   const loadChildren = useCallback(async () => {
     if (!user?.id) {
@@ -400,6 +458,37 @@ export default function HomeDashboard() {
     setTimeout(() => setCopiedPin(false), 2000);
   };
 
+  const handleCheckoutPlan = async (planCode: string) => {
+    if (!user?.id) return;
+
+    setCheckingOutPlanCode(planCode);
+    setBillingError("");
+
+    try {
+      const response = await fetch(withApiBase("/api/billing/checkout"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ planCode }),
+      });
+
+      const payload = (await response.json()) as BillingCheckoutPayload;
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to create checkout.");
+      }
+      if (!payload.checkoutUrl) {
+        throw new Error("Checkout URL is missing.");
+      }
+
+      window.location.assign(payload.checkoutUrl);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to open checkout.";
+      setBillingError(message);
+      setCheckingOutPlanCode(null);
+    }
+  };
+
   const openAddChild = () => {
     setShowAddChild(true);
     generatePin();
@@ -409,6 +498,15 @@ export default function HomeDashboard() {
     setChildren(prev => [child, ...prev]);
     setSelectedChildId(child.id);
     setPreferredChildId(child.id);
+    setBillingSummary((prev) => {
+      if (!prev) return prev;
+      const nextChildCount = prev.childCount + 1;
+      return {
+        ...prev,
+        childCount: nextChildCount,
+        remainingSlots: Math.max(0, prev.maxChildren - nextChildCount),
+      };
+    });
   };
 
   const handleRenamedChild = (childId: number, name: string) => {
@@ -505,6 +603,11 @@ export default function HomeDashboard() {
               onCreatedChild={handleCreatedChild}
               onRenamedChild={handleRenamedChild}
               onJumpToSection={handleJumpToChildSection}
+              onSubscriptionRequired={() => {
+                setShowAddChild(false);
+                setBillingModalOpen(true);
+                void loadBilling();
+              }}
             />
           </>
         );
@@ -560,7 +663,21 @@ export default function HomeDashboard() {
         }}
       >
         <div className="flex h-full flex-col md:flex-row">
-          <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} />
+          <Sidebar
+            activeTab={activeTab}
+            onChangeTab={setActiveTab}
+            onOpenUpgrade={() => {
+              setBillingModalOpen(true);
+              void loadBilling();
+            }}
+            upgradeLabel={billingSummary?.isPaid ? "Manage Subscription" : "Upgrade Plan"}
+            upgradeSubLabel={
+              billingSummary
+                ? `${billingSummary.childCount}/${billingSummary.maxChildren} child slots used`
+                : "Advanced features"
+            }
+            upgradeDisabled={billingLoading}
+          />
 
           <div className="flex-1 overflow-y-auto p-3 md:p-6 lg:p-7">
             <div className="mx-auto max-w-5xl">{renderContent()}</div>
@@ -580,6 +697,18 @@ export default function HomeDashboard() {
             void confirmPendingActions();
           }}
           onCancelActions={cancelPendingActions}
+        />
+        <BillingUpgradeModal
+          open={billingModalOpen}
+          plans={billingPlans}
+          summary={billingSummary}
+          loading={billingLoading}
+          error={billingError}
+          checkingOutPlanCode={checkingOutPlanCode}
+          onClose={() => setBillingModalOpen(false)}
+          onCheckout={(planCode) => {
+            void handleCheckoutPlan(planCode);
+          }}
         />
       </div>
     </TeslaAuthBackdrop>

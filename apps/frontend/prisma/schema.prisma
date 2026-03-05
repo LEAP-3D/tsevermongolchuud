@@ -26,6 +26,9 @@ model User {
   updatedAt DateTime @updatedAt
   children  Child[]
   notificationSettings NotificationSetting?
+  subscriptions       UserSubscription[]
+  paymentInvoices     PaymentInvoice[]
+  paymentEvents       PaymentEvent[]
 }
 
 model NotificationSetting {
@@ -222,6 +225,123 @@ model ChildFocusBlocked {
   @@index([childId])
 }
 
+model SubscriptionPlan {
+  id             Int      @id @default(autoincrement())
+  code           String   @unique
+  name           String
+  description    String?
+  priceMnt       Int
+  durationMonths Int
+  maxChildren    Int
+  aiAgentEnabled Boolean  @default(true)
+  currency       String   @default("MNT")
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  bonumPlanId    Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subscriptions UserSubscription[]
+  invoices      PaymentInvoice[]
+}
+
+model UserSubscription {
+  id                     Int                       @id @default(autoincrement())
+  userId                 Int
+  planId                 Int
+  status                 BillingSubscriptionStatus @default(PENDING)
+  source                 String?
+  startsAt               DateTime?
+  endsAt                 DateTime?
+  activatedAt            DateTime?
+  canceledAt             DateTime?
+  externalSubscriptionId String?
+  metadata               Json?
+  latestInvoiceId        Int?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan          SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  latestInvoice PaymentInvoice? @relation("LatestInvoice", fields: [latestInvoiceId], references: [id], onDelete: SetNull)
+  invoices      PaymentInvoice[] @relation("SubscriptionInvoices")
+
+  @@index([userId, status])
+  @@index([planId, status])
+}
+
+model PaymentInvoice {
+  id                 Int                @id @default(autoincrement())
+  userId             Int
+  planId             Int
+  subscriptionId     Int?
+  provider           BillingProvider    @default(BONUM)
+  localTransactionId String             @unique
+  bonumInvoiceId     String?            @unique
+  amountMnt          Int
+  currency           String             @default("MNT")
+  status             BillingInvoiceStatus @default(CREATED)
+  followUpLink       String?
+  callbackUrl        String?
+  expiresAt          DateTime?
+  paidAt             DateTime?
+  failedAt           DateTime?
+  webhookReceivedAt  DateTime?
+  rawCreateResponse  Json?
+  rawLastWebhook     Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan  @relation(fields: [planId], references: [id], onDelete: Restrict)
+  subscription          UserSubscription? @relation("SubscriptionInvoices", fields: [subscriptionId], references: [id], onDelete: SetNull)
+  latestForSubscriptions UserSubscription[] @relation("LatestInvoice")
+  events                PaymentEvent[]
+
+  @@index([userId, status, createdAt])
+  @@index([subscriptionId])
+}
+
+model PaymentEvent {
+  id             Int             @id @default(autoincrement())
+  userId         Int?
+  invoiceId      Int?
+  provider       BillingProvider @default(BONUM)
+  eventType      String
+  eventStatus    String?
+  dedupeKey      String          @unique
+  signatureValid Boolean
+  processed      Boolean         @default(false)
+  processError   String?
+  bonumInvoiceId String?
+  transactionId  String?
+  payload        Json
+  headers        Json?
+  receivedAt     DateTime        @default(now())
+  processedAt    DateTime?
+
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invoice PaymentInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([bonumInvoiceId])
+  @@index([transactionId])
+}
+
+model BonumAuthToken {
+  id                    Int      @id @default(autoincrement())
+  terminalId            String   @unique
+  accessToken           String
+  refreshToken          String?
+  tokenType             String?
+  expiresInSeconds      Int?
+  refreshExpiresSeconds Int?
+  accessTokenExpiresAt  DateTime
+  refreshTokenExpiresAt DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
 enum StatusType {
   ALLOWED
   BLOCKED
@@ -232,4 +352,25 @@ enum AlertType {
   DANGEROUS_CONTENT
   TIME_LIMIT_EXCEEDED
   SUSPICIOUS_ACTIVITY
+}
+
+enum BillingProvider {
+  BONUM
+}
+
+enum BillingInvoiceStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELED
+}
+
+enum BillingSubscriptionStatus {
+  PENDING
+  ACTIVE
+  CANCELED
+  EXPIRED
+  PAST_DUE
 }

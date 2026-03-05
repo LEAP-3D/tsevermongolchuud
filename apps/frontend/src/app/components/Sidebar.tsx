@@ -13,9 +13,20 @@ const NAV_ITEMS = [
 export type SidebarProps = {
   activeTab: string;
   onChangeTab: (tab: string) => void;
+  onOpenUpgrade?: () => void;
+  upgradeLabel?: string;
+  upgradeSubLabel?: string;
+  upgradeDisabled?: boolean;
 };
 
-export default function Sidebar({ activeTab, onChangeTab }: SidebarProps) {
+export default function Sidebar({
+  activeTab,
+  onChangeTab,
+  onOpenUpgrade,
+  upgradeLabel,
+  upgradeSubLabel,
+  upgradeDisabled = false,
+}: SidebarProps) {
   return (
     <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200/80 md:h-screen md:shrink-0 p-4">
       <div className="flex items-center gap-2 px-3 py-3 md:py-4 mb-3 md:mb-6">
@@ -44,12 +55,17 @@ export default function Sidebar({ activeTab, onChangeTab }: SidebarProps) {
         <div className="flex items-start gap-2 mb-2">
           <Zap className="w-4 h-4 text-blue-500 mt-0.5" />
           <div>
-            <p className="text-xs font-semibold text-gray-900">Upgrade to Pro</p>
-            <p className="text-xs text-gray-600 mt-1">Advanced features</p>
+            <p className="text-xs font-semibold text-gray-900">{upgradeLabel ?? "Upgrade to Pro"}</p>
+            <p className="text-xs text-gray-600 mt-1">{upgradeSubLabel ?? "Advanced features"}</p>
           </div>
         </div>
-        <button className="w-full mt-3 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded-lg hover:bg-blue-600 transition-colors">
-          Learn More
+        <button
+          type="button"
+          onClick={onOpenUpgrade}
+          disabled={upgradeDisabled}
+          className="w-full mt-3 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {upgradeDisabled ? "Loading..." : "Manage Plan"}
         </button>
       </div>
     </div>
