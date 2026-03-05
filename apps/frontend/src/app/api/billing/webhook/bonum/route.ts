@@ -38,10 +38,25 @@ const addMonths = (base: Date, months: number) => {
 const isUniqueConstraintError = (error: unknown) =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 
+const toUpper = (value: string | null) => value?.toUpperCase() ?? null;
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const returnUrl =
+    process.env.BILLING_POST_PAYMENT_REDIRECT_URL?.trim() ||
+    `${url.origin}/home?billing=returned`;
+  return NextResponse.redirect(returnUrl);
+}
+
 export async function POST(req: Request) {
   const rawBody = await req.text();
-  const checksumHeader = req.headers.get("x-checksum-v2");
-  const signatureValid = verifyBonumChecksum(rawBody, checksumHeader);
+  const checksumHeader =
+    req.headers.get("x-checksum-v2") ?? req.headers.get("x-checksum");
+  const checksumKey = process.env.BONUM_MERCHANT_CHECKSUM_KEY?.trim() ?? "";
+  const signatureRequired = checksumKey.length > 0;
+  const signatureValid = signatureRequired
+    ? verifyBonumChecksum(rawBody, checksumHeader)
+    : true;
   const dedupeKey = generateBonumWebhookDedupeKey(rawBody);
 
   let payload: WebhookPayload;
@@ -54,8 +69,12 @@ export async function POST(req: Request) {
   const payloadBody = isRecord(payload.body) ? payload.body : {};
   const eventType = asTrimmedString(payload.type) ?? "UNKNOWN";
   const eventStatus = asTrimmedString(payload.status) ?? null;
-  const bonumInvoiceId = asTrimmedString(payloadBody.invoiceId);
-  const transactionId = asTrimmedString(payloadBody.transactionId);
+  const bonumInvoiceId =
+    asTrimmedString(payloadBody.invoiceId) ??
+    asTrimmedString((payload as Record<string, unknown>).invoiceId);
+  const transactionId =
+    asTrimmedString(payloadBody.transactionId) ??
+    asTrimmedString((payload as Record<string, unknown>).transactionId);
 
   let invoice =
     bonumInvoiceId
@@ -113,7 +132,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  if (!signatureValid) {
+  if (signatureRequired && !signatureValid) {
     if (paymentEventId) {
       await prisma.paymentEvent.update({
         where: { id: paymentEventId },
@@ -147,8 +166,23 @@ export async function POST(req: Request) {
       parseBonumDate(payloadBody.completedAt) ??
       parseBonumDate(payloadBody.updatedAt) ??
       now;
+    const normalizedEventType = toUpper(eventType);
+    const normalizedEventStatus = toUpper(eventStatus);
+    const normalizedInvoiceStatus = toUpper(
+      asTrimmedString(payloadBody.invoiceStatus),
+    );
+    const isPaymentSuccess =
+      normalizedEventType === "PAYMENT" &&
+      (normalizedEventStatus === "SUCCESS" ||
+        normalizedInvoiceStatus === "PAID" ||
+        normalizedInvoiceStatus === "SUCCESS");
+    const isPaymentFailed =
+      normalizedEventType === "PAYMENT" &&
+      (normalizedEventStatus === "FAILED" ||
+        normalizedInvoiceStatus === "FAILED" ||
+        normalizedInvoiceStatus === "EXPIRED");
 
-    if (eventType === "PAYMENT" && eventStatus === "SUCCESS") {
+    if (isPaymentSuccess) {
       await prisma.$transaction(async (tx) => {
         await tx.paymentInvoice.update({
           where: { id: invoice.id },
@@ -185,10 +219,9 @@ export async function POST(req: Request) {
           });
         }
       });
-    } else if (eventType === "PAYMENT" && eventStatus === "FAILED") {
-      const invoiceStatus = asTrimmedString(payloadBody.invoiceStatus);
+    } else if (isPaymentFailed) {
       const nextStatus =
-        invoiceStatus?.toUpperCase() === "EXPIRED"
+        normalizedInvoiceStatus === "EXPIRED"
           ? BillingInvoiceStatus.EXPIRED
           : BillingInvoiceStatus.FAILED;
 
@@ -214,7 +247,7 @@ export async function POST(req: Request) {
           });
         }
       });
-    } else if (eventType === "UNSUBSCRIBED" && invoice.subscriptionId) {
+    } else if (normalizedEventType === "UNSUBSCRIBED" && invoice.subscriptionId) {
       await prisma.userSubscription.update({
         where: { id: invoice.subscriptionId },
         data: {
