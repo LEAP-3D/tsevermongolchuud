@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { attachSessionCookie, createSessionToken } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
 
 export async function POST(req: Request) {
@@ -21,16 +20,15 @@ export async function POST(req: Request) {
         email: trimmedEmail,
         password: hashedPassword,
         name: trimmedName || null,
+        verified: false,
       },
-      select: { id: true, email: true, name: true },
+      select: { id: true, email: true },
     });
 
-    const session = createSessionToken({ userId: user.id, email: user.email });
-    const response = NextResponse.json({
-      user: { ...user, expiresAt: session.expiresAt * 1000 },
+    return NextResponse.json({
+      email: user.email,
+      requiresVerification: true,
     });
-    attachSessionCookie(response, session);
-    return response;
   } catch (error) {
     const isUniqueError =
       typeof error === "object" &&

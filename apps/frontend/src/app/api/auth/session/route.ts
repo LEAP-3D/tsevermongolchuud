@@ -14,10 +14,10 @@ export async function GET(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, email: true, name: true },
+    select: { id: true, email: true, name: true, verified: true },
   });
 
-  if (!user) {
+  if (!user || !user.verified) {
     const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     clearSessionCookie(response);
     return response;

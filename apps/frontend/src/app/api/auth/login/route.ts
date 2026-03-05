@@ -15,11 +15,17 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.findUnique({
       where: { email: trimmedEmail },
-      select: { id: true, email: true, name: true, password: true },
+      select: { id: true, email: true, name: true, password: true, verified: true },
     });
 
     if (!user || !(await verifyPassword(providedPassword, user.password))) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
+    }
+    if (!user.verified) {
+      return NextResponse.json(
+        { error: "Please verify your email before signing in.", code: "EMAIL_NOT_VERIFIED" },
+        { status: 403 },
+      );
     }
     if (!isHashedPassword(user.password)) {
       const hashedPassword = await hashPassword(providedPassword);

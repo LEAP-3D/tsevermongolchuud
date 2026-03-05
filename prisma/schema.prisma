@@ -13,7 +13,14 @@ model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   password  String // Hash хийгдсэн нууц үг
-  name      String?
+  pendingPasswordHash       String?
+  passwordChangeTokenHash   String?
+  passwordChangeRequestedAt DateTime?
+  passwordChangeExpiresAt   DateTime?
+  deleteAccountTokenHash    String?
+  deleteAccountRequestedAt  DateTime?
+  deleteAccountExpiresAt    DateTime?
+  name                      String?
   verified  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
