@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
+import { getUserChildCapacity } from "@/lib/billing/entitlement";
 
 const DEFAULT_TIMEZONE = "UTC";
 
@@ -73,6 +74,23 @@ export async function POST(req: Request) {
     }
     if (Number.isNaN(parsedAge)) {
       return NextResponse.json({ error: "Invalid age" }, { status: 400 });
+    }
+
+    const capacity = await getUserChildCapacity(session.userId);
+    if (!capacity.canAddChild) {
+      return NextResponse.json(
+        {
+          error: `Your current plan allows up to ${capacity.entitlement.maxChildren} child profile(s). Upgrade to add more.`,
+          code: "SUBSCRIPTION_REQUIRED",
+          details: {
+            childCount: capacity.childCount,
+            maxChildren: capacity.entitlement.maxChildren,
+            isPaid: capacity.entitlement.isPaid,
+            remainingSlots: capacity.remainingSlots,
+          },
+        },
+        { status: 402 },
+      );
     }
 
     const child = await prisma.child.create({
