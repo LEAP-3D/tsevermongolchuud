@@ -17,6 +17,14 @@ type CheckoutBody = {
   planCode?: string;
 };
 
+const resolveDemoPriceOverrideMnt = (): number | null => {
+  const rawValue = process.env.BILLING_DEMO_PRICE_MNT?.trim();
+  if (!rawValue) return null;
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
 export async function POST(req: Request) {
   const session = getSessionFromRequest(req);
   if (!session) {
@@ -49,6 +57,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Selected plan is unavailable." }, { status: 404 });
     }
 
+    const amountMnt = resolveDemoPriceOverrideMnt() ?? selectedPlan.priceMnt;
     const callbackUrl = resolvePaymentReturnUrlForInvoice(req);
     const localTransactionId = generateLocalTransactionId(session.userId);
 
@@ -68,7 +77,7 @@ export async function POST(req: Request) {
         planId: selectedPlan.id,
         subscriptionId: pendingSubscription.id,
         localTransactionId,
-        amountMnt: selectedPlan.priceMnt,
+        amountMnt,
         currency: selectedPlan.currency,
         status: BillingInvoiceStatus.CREATED,
         callbackUrl,
@@ -78,7 +87,7 @@ export async function POST(req: Request) {
 
     try {
       const invoice = await createBonumInvoice({
-        amountMnt: selectedPlan.priceMnt,
+        amountMnt,
         transactionId: localTransactionId,
         callbackUrl,
         itemTitle: selectedPlan.name,
