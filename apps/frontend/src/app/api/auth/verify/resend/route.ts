@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { buildEmailVerificationUrl, createEmailVerificationToken } from "@/lib/emailVerification";
 import { sendVerificationEmail } from "@/lib/email";
+import { toEmailUserMessage } from "@/lib/emailErrors";
 
 export async function POST(req: Request) {
   try {
@@ -32,7 +33,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, emailSent: result.sent });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to resend verification email.";
+    console.error("[verify:resend] email error", error);
+    const message = toEmailUserMessage(error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

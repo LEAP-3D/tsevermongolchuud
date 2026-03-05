@@ -28,6 +28,14 @@ export default function SettingsContent({
   const [childrenError, setChildrenError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [highlightChildId, setHighlightChildId] = useState<number | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordUpdateNotice, setPasswordUpdateNotice] = useState("");
+  const [passwordUpdateError, setPasswordUpdateError] = useState("");
+  const [passwordUpdateSubmitting, setPasswordUpdateSubmitting] = useState(false);
+  const [deleteAccountSubmitting, setDeleteAccountSubmitting] = useState(false);
+  const [deleteAccountNotice, setDeleteAccountNotice] = useState("");
+  const [accountError, setAccountError] = useState("");
 
   const loadChildren = useCallback(async () => {
     if (!user?.id) {
@@ -146,6 +154,87 @@ export default function SettingsContent({
     }
     setShowHelpModal(false);
     resetHelpForm();
+  };
+
+  const closeSecurityModal = () => {
+    setActiveSecurityModal(null);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordUpdateNotice("");
+    setPasswordUpdateError("");
+    setPasswordUpdateSubmitting(false);
+  };
+
+  const submitPasswordChange = async () => {
+    if (!newPassword || !confirmPassword) {
+      setPasswordUpdateError("Please enter and confirm your new password.");
+      setPasswordUpdateNotice("");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordUpdateError("Password and confirm password must match.");
+      setPasswordUpdateNotice("");
+      return;
+    }
+
+    setPasswordUpdateSubmitting(true);
+    setPasswordUpdateError("");
+    setPasswordUpdateNotice("");
+    try {
+      const response = await fetch(withApiBase("/api/auth/password/change/request"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ newPassword, confirmPassword }),
+      });
+      const payload = (await response.json()) as { error?: string; emailSent?: boolean };
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to request password change.");
+      }
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordUpdateNotice(
+        payload?.emailSent
+          ? "Check your email and click the link to finalize your password change."
+          : "Email delivery is not configured. Check server logs for the password change link.",
+      );
+    } catch (err) {
+      setPasswordUpdateError(
+        err instanceof Error ? err.message : "Failed to request password change.",
+      );
+    } finally {
+      setPasswordUpdateSubmitting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      "Request account deletion? We'll send a confirmation link to your email.",
+    );
+    if (!confirmed) return;
+
+    setDeleteAccountSubmitting(true);
+    setDeleteAccountNotice("");
+    setAccountError("");
+    try {
+      const response = await fetch(withApiBase("/api/auth/account/delete/request"), {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = (await response.json()) as { error?: string; emailSent?: boolean };
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to delete account.");
+      }
+      setDeleteAccountNotice(
+        payload?.emailSent
+          ? "Check your email and click the link to finalize account deletion."
+          : "Email delivery is not configured. Check server logs for the account deletion link.",
+      );
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : "Failed to delete account.");
+    } finally {
+      setDeleteAccountSubmitting(false);
+    }
   };
 
   return (
@@ -292,24 +381,43 @@ export default function SettingsContent({
 
       <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-gray-200/80">
         <h3 className="text-sm md:text-base font-semibold text-gray-900 mb-3">Account</h3>
-        <p className="text-sm text-gray-500 mb-4">Sign out of your account on this device.</p>
-        <button
-          onClick={async () => {
-            try {
-              await fetch(withApiBase("/api/auth/logout"), {
-                method: "POST",
-                credentials: "include",
-              });
-            } catch {
-              // ignore logout network errors; local state is still cleared
-            }
-            clearStoredUser();
-            router.push("/login");
-          }}
-          className="w-full sm:w-auto px-6 py-3 bg-white text-blue-600 font-medium rounded-xl border border-blue-200 hover:bg-blue-50 transition-colors"
-        >
-          Log Out
-        </button>
+        <p className="text-sm text-gray-500 mb-4">Sign out or permanently delete your account.</p>
+        {accountError && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {accountError}
+          </div>
+        )}
+        {deleteAccountNotice && (
+          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            {deleteAccountNotice}
+          </div>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            onClick={async () => {
+              try {
+                await fetch(withApiBase("/api/auth/logout"), {
+                  method: "POST",
+                  credentials: "include",
+                });
+              } catch {
+                // ignore logout network errors; local state is still cleared
+              }
+              clearStoredUser();
+              router.push("/login");
+            }}
+            className="w-full sm:w-auto px-6 py-3 bg-white text-blue-600 font-medium rounded-xl border border-blue-200 hover:bg-blue-50 transition-colors"
+          >
+            Log Out
+          </button>
+          <button
+            onClick={() => void handleDeleteAccount()}
+            disabled={deleteAccountSubmitting}
+            className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-medium rounded-xl border border-red-600 hover:bg-red-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {deleteAccountSubmitting ? "Sending..." : "Delete Account"}
+          </button>
+        </div>
       </div>
 
       {activeSecurityModal && (
@@ -322,7 +430,7 @@ export default function SettingsContent({
                 {activeSecurityModal === "export" && "Data Export"}
               </h4>
               <button
-                onClick={() => setActiveSecurityModal(null)}
+                onClick={closeSecurityModal}
                 className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
                 aria-label="Close"
               >
@@ -333,25 +441,43 @@ export default function SettingsContent({
               {activeSecurityModal === "password" && (
                 <>
                   <p className="text-sm text-gray-600">Update your password to keep your account secure.</p>
+                  {passwordUpdateError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {passwordUpdateError}
+                    </div>
+                  )}
+                  {passwordUpdateNotice && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                      {passwordUpdateNotice}
+                    </div>
+                  )}
                   <input
                     type="password"
                     placeholder="New password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   />
                   <input
                     type="password"
                     placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   />
                   <div className="flex justify-end gap-2">
                     <button
-                      onClick={() => setActiveSecurityModal(null)}
+                      onClick={closeSecurityModal}
                       className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Cancel
                     </button>
-                    <button className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600">
-                      Update Password
+                    <button
+                      onClick={() => void submitPasswordChange()}
+                      disabled={passwordUpdateSubmitting}
+                      className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {passwordUpdateSubmitting ? "Sending..." : "Update Password"}
                     </button>
                   </div>
                 </>
@@ -366,7 +492,7 @@ export default function SettingsContent({
                   </div>
                   <div className="flex justify-end gap-2">
                     <button
-                      onClick={() => setActiveSecurityModal(null)}
+                      onClick={closeSecurityModal}
                       className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Cancel
@@ -382,7 +508,7 @@ export default function SettingsContent({
                   <p className="text-sm text-gray-600">Export your monitoring data as a CSV file.</p>
                   <div className="flex justify-end gap-2">
                     <button
-                      onClick={() => setActiveSecurityModal(null)}
+                      onClick={closeSecurityModal}
                       className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Cancel
