@@ -1,6 +1,10 @@
 /* eslint-disable max-lines */
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { sendDangerousWebsiteAlertEmail } from "@/lib/dangerousAlertEmail";
+
+const DANGEROUS_SAFETY_SCORE_THRESHOLD = 50;
+const DANGEROUS_ALERT_DEDUP_WINDOW_MS = 15 * 60 * 1000;
 
 const ISO_WITH_TIMEZONE_REGEX = /(Z|[+-]\d{2}:\d{2})$/i;
 const ISO_WITHOUT_TIMEZONE_REGEX =
@@ -167,6 +171,34 @@ export async function POST(req: Request) {
     timezoneOffsetMinutes,
   } = await req.json();
 
+  const normalizedDomain =
+    typeof domain === "string" ? domain.trim().toLowerCase() : "";
+  const fullUrlValue = typeof fullUrl === "string" ? fullUrl.trim() : "";
+  const normalizedCategoryName =
+    typeof categoryName === "string" ? categoryName.trim().toLowerCase() : "";
+  const dangerousCatalogEntry = normalizedDomain
+    ? await prisma.urlCatalog.findUnique({
+        where: { domain: normalizedDomain },
+        select: { safetyScore: true },
+      })
+    : null;
+  const resolvedSafetyScore = Number(dangerousCatalogEntry?.safetyScore);
+  const isDangerousByScore =
+    Number.isFinite(resolvedSafetyScore) &&
+    resolvedSafetyScore < DANGEROUS_SAFETY_SCORE_THRESHOLD;
+  const isDangerousByCategory = normalizedCategoryName === "dangerous";
+  const shouldNotifyDangerousVisit = isDangerousByScore || isDangerousByCategory;
+  const numericChildId = Number(childId);
+  const resolvedVisitedAt = parseVisitedAt(
+    visitedAt,
+    timeZone ?? headerTimeZone,
+    Number.isFinite(Number(timezoneOffsetMinutes))
+      ? Number(timezoneOffsetMinutes)
+      : Number.isFinite(headerOffset)
+        ? headerOffset
+        : null,
+  );
+
   const history = await prisma.history.create({
     data: {
       childId,
@@ -175,19 +207,91 @@ export async function POST(req: Request) {
       title,
       categoryName,
       duration,
-      visitedAt: parseVisitedAt(
-        visitedAt,
-        timeZone ?? headerTimeZone,
-        Number.isFinite(Number(timezoneOffsetMinutes))
-          ? Number(timezoneOffsetMinutes)
-          : Number.isFinite(headerOffset)
-            ? headerOffset
-            : null,
-      ),
+      visitedAt: resolvedVisitedAt,
       actionTaken,
       device,
     },
   });
+
+  if (shouldNotifyDangerousVisit && Number.isInteger(numericChildId) && numericChildId > 0) {
+    try {
+      const child = await prisma.child.findUnique({
+        where: { id: numericChildId },
+        select: {
+          id: true,
+          name: true,
+          parent: {
+            select: {
+              email: true,
+              name: true,
+              notificationSettings: {
+                select: {
+                  emailNotifications: true,
+                  realtimeAlerts: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (child?.parent?.email) {
+        const emailNotificationsEnabled =
+          child.parent.notificationSettings?.emailNotifications ?? true;
+        const realtimeAlertsEnabled =
+          child.parent.notificationSettings?.realtimeAlerts ?? true;
+        const shouldSendRealtimeEmail = emailNotificationsEnabled && realtimeAlertsEnabled;
+        const target = normalizedDomain || fullUrlValue || "unknown website";
+        const roundedSafetyScore = Number.isFinite(resolvedSafetyScore)
+          ? Math.max(0, Math.min(100, Math.round(resolvedSafetyScore)))
+          : null;
+        const alertMessage = `${child.name} visited a dangerous website: ${target}${
+          roundedSafetyScore === null ? "" : ` (safety score ${roundedSafetyScore})`
+        }.`;
+        const dedupSince = new Date(Date.now() - DANGEROUS_ALERT_DEDUP_WINDOW_MS);
+        const recentDuplicate = await prisma.alert.findFirst({
+          where: {
+            childId: numericChildId,
+            type: "DANGEROUS_CONTENT",
+            message: alertMessage,
+            createdAt: { gte: dedupSince },
+          },
+          select: { id: true },
+        });
+
+        if (!recentDuplicate) {
+          let emailSent = false;
+          if (shouldSendRealtimeEmail) {
+            try {
+              const emailResult = await sendDangerousWebsiteAlertEmail({
+                to: child.parent.email,
+                parentName: child.parent.name,
+                childName: child.name,
+                domain: normalizedDomain,
+                fullUrl: fullUrlValue,
+                safetyScore: roundedSafetyScore,
+                visitedAt: resolvedVisitedAt ?? new Date(),
+              });
+              emailSent = emailResult.sent;
+            } catch (error) {
+              console.error("[history:dangerous-email] failed to send notification", error);
+            }
+          }
+
+          await prisma.alert.create({
+            data: {
+              childId: numericChildId,
+              type: "DANGEROUS_CONTENT",
+              message: alertMessage,
+              isSent: emailSent,
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error("[history:dangerous-alert] failed to create dangerous alert", error);
+    }
+  }
 
   return NextResponse.json(history);
 }

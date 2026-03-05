@@ -5,16 +5,23 @@ import { PASSWORD_CHANGE_VERIFICATION_TTL_SECONDS } from "./passwordChangeVerifi
 const getBrandName = () => process.env.APP_BRAND_NAME ?? "SafeKid";
 const getBrandPrimaryColor = () => process.env.APP_BRAND_PRIMARY_COLOR ?? "#4f46e5";
 const getSupportEmail = () => process.env.APP_SUPPORT_EMAIL ?? "";
-const getExpiryHours = (ttlSeconds: number) => Math.max(1, Math.floor(ttlSeconds / 3600));
-const getFromEmail = () => process.env.EMAIL_FROM ?? "no-reply@example.com";
-const getFromName = () => process.env.EMAIL_FROM_NAME ?? getBrandName();
-const getFromHeader = () => `${getFromName()} <${getFromEmail()}>`;
 const getSmtpHost = () => process.env.SMTP_HOST ?? "";
 const getSmtpPort = () => Number(process.env.SMTP_PORT ?? 587);
 const getSmtpSecure = () => process.env.SMTP_SECURE === "true";
 const getSmtpUser = () => process.env.SMTP_USER ?? "";
 const getSmtpPass = () => process.env.SMTP_PASS ?? "";
 const getSmtpService = () => process.env.SMTP_SERVICE ?? "";
+const getFromEmail = () => {
+  const customFrom = (process.env.EMAIL_FROM ?? "").trim();
+  if (customFrom) return customFrom;
+  const smtpUser = getSmtpUser().trim();
+  if (smtpUser) return smtpUser;
+  return "no-reply@example.com";
+};
+const getExpiryHours = (ttlSeconds: number) => Math.max(1, Math.floor(ttlSeconds / 3600));
+const getFromName = () => process.env.EMAIL_FROM_NAME ?? getBrandName();
+const getFromHeader = () => `${getFromName()} <${getFromEmail()}>`;
+const getReplyToEmail = () => process.env.EMAIL_REPLY_TO ?? "";
 
 type SendVerificationEmailParams = {
   to: string;
@@ -36,6 +43,7 @@ const sendEmail = async (params: SendEmailParams) => {
   const smtpHost = getSmtpHost();
   const smtpPort = getSmtpPort();
   const smtpSecure = getSmtpSecure();
+  const replyToEmail = getReplyToEmail();
   const missingAuth = !smtpUser || !smtpPass;
   const missingTransport = !smtpService && !smtpHost;
 
@@ -57,6 +65,8 @@ const sendEmail = async (params: SendEmailParams) => {
 
   await transporter.sendMail({
     from: getFromHeader(),
+    sender: smtpUser ? `${getFromName()} <${smtpUser}>` : undefined,
+    replyTo: replyToEmail || undefined,
     to: params.to,
     subject: params.subject,
     text: params.text,

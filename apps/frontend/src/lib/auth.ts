@@ -58,8 +58,11 @@ export const useAuthUser = () => {
       const localUser = getStoredUser();
       if (!isMounted) return;
       setUser(localUser);
-      setLoading(false);
-      if (!localUser) return;
+      if (!localUser) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
 
       try {
         const response = await fetch(withApiBase("/api/auth/session"), {
@@ -70,6 +73,9 @@ export const useAuthUser = () => {
 
         if (!response.ok) {
           clearStoredUser();
+          if (isMounted) {
+            setUser(null);
+          }
           return;
         }
 
@@ -82,11 +88,24 @@ export const useAuthUser = () => {
           !Number.isFinite(nextUser.expiresAt)
         ) {
           clearStoredUser();
+          if (isMounted) {
+            setUser(null);
+          }
           return;
         }
         setStoredUser(nextUser);
+        if (isMounted) {
+          setUser(nextUser);
+        }
       } catch {
-        // Keep local session if the check fails temporarily.
+        clearStoredUser();
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 

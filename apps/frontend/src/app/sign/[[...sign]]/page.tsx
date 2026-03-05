@@ -2,7 +2,7 @@
 
 import TeslaAuthLayout from "../../components/TeslaAuthLayout";
 import { withApiBase } from "@/lib/apiBase";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SignUpForm from "../../components/SignUpForm";
 
 export default function SignPage() {
@@ -11,36 +11,54 @@ export default function SignPage() {
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [resendMessage, setResendMessage] = useState<string>("");
 
-  const handleVerifyAccount = async () => {
-    if (!pendingEmail || resendState === "sending") return;
-
+  const requestVerificationEmail = async (emailAddress: string, source: "auto" | "manual") => {
     setResendState("sending");
-    setResendMessage("");
+    setResendMessage(
+      source === "auto" ? "Sending verification email..." : "",
+    );
     try {
       const response = await fetch(withApiBase("/api/auth/verify/resend"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: pendingEmail }),
+        body: JSON.stringify({ email: emailAddress }),
       });
       const payload = (await response.json()) as { error?: string; emailSent?: boolean };
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to resend verification email.");
+        throw new Error(payload?.error || "We couldn't send the verification email. Please try again.");
       }
 
       if (payload?.emailSent) {
         setResendState("sent");
         setEmailSent(true);
-        setResendMessage("Verification email sent. Please check your inbox.");
+        setResendMessage(
+          source === "auto"
+            ? "Verification email sent. Please check your inbox."
+            : "New verification email sent. Please check your inbox.",
+        );
       } else {
         setResendState("sent");
-        setResendMessage("Resend requested. If your account exists, check your inbox.");
+        setEmailSent(false);
+        setResendMessage("We couldn't send the verification email right now. Please try again.");
       }
     } catch (error) {
       setResendState("error");
+      setEmailSent(false);
       setResendMessage(
-        error instanceof Error ? error.message : "Failed to resend verification email.",
+        error instanceof Error
+          ? error.message
+          : "We couldn't send the verification email right now. Please try again.",
       );
     }
+  };
+
+  useEffect(() => {
+    if (!pendingEmail) return;
+    void requestVerificationEmail(pendingEmail, "auto");
+  }, [pendingEmail]);
+
+  const handleVerifyAccount = async () => {
+    if (!pendingEmail || resendState === "sending") return;
+    await requestVerificationEmail(pendingEmail, "manual");
   };
 
   return (
@@ -56,26 +74,29 @@ export default function SignPage() {
         </div>
 
         {!pendingEmail ? (
-          <SignUpForm onSuccess={({ email }) => setPendingEmail(email)} />
+          <SignUpForm
+            onSuccess={({ email }) => {
+              setPendingEmail(email);
+              setEmailSent(false);
+              setResendState("idle");
+              setResendMessage("");
+            }}
+          />
         ) : (
           <div className="space-y-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-slate-700">
             <p>
               Account created for <strong>{pendingEmail}</strong>.
             </p>
             <p>
-              Next step: open your verification step and click <strong>Verify Account</strong> to send the
-              email.
+              {resendState === "sending"
+                ? "Sending verification email..."
+                : emailSent
+                  ? "We sent a verification email to activate your account."
+                  : "We couldn't send the verification email automatically. Please resend it."}
             </p>
             {emailSent && (
               <p className="text-slate-700">
                 A verification link has been sent. Open your email inbox and click the link.
-              </p>
-            )}
-            {!emailSent && resendState === "sent" && (
-              <p className="text-amber-700">
-                Email delivery is not configured yet (`SMTP_USER/SMTP_PASS` + `SMTP_SERVICE` or
-                `SMTP_HOST` missing). Check server logs for the verification URL in development, or
-                configure SMTP and resend.
               </p>
             )}
             <div className="flex flex-wrap items-center gap-3">
@@ -85,7 +106,7 @@ export default function SignPage() {
                 disabled={resendState === "sending"}
                 className="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {resendState === "sending" ? "Sending..." : emailSent ? "Resend Email" : "Verify Account"}
+                {resendState === "sending" ? "Sending..." : "Resend Email"}
               </button>
               <button
                 type="button"
@@ -95,7 +116,11 @@ export default function SignPage() {
                 Go to Sign In
               </button>
             </div>
-            {resendMessage ? <p>{resendMessage}</p> : null}
+            {resendMessage ? (
+              <p className={resendState === "error" ? "text-red-700" : "text-slate-700"}>
+                {resendMessage}
+              </p>
+            ) : null}
           </div>
         )}
 

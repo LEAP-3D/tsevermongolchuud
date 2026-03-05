@@ -32,3 +32,9 @@ export const buildPasswordChangeVerificationUrl = (token: string) => {
   url.searchParams.set("token", token);
   return url.toString();
 };
+
+export const buildForgotPasswordResetUrl = (token: string) => {
+  const url = new URL("/reset-password", getAppOrigin());
+  url.searchParams.set("token", token);
+  return url.toString();
+};

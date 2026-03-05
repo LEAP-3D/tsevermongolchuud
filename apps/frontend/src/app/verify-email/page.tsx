@@ -1,7 +1,9 @@
 "use client";
+/* eslint-disable max-lines */
 
 import { withApiBase } from "@/lib/apiBase";
-import { useSearchParams } from "next/navigation";
+import { setStoredUser } from "@/lib/auth";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
 type VerifyState = "checking" | "success" | "already" | "invalid" | "error";
@@ -17,6 +19,7 @@ const VerifyPageShell = ({ title, message }: { title: string; message: string })
 );
 
 function VerifyEmailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = useMemo(() => searchParams.get("token") ?? "", [searchParams]);
   const purpose = useMemo<VerifyPurpose>(() => {
@@ -37,6 +40,8 @@ function VerifyEmailContent() {
   );
 
   useEffect(() => {
+    let redirectTimeout: number | null = null;
+
     const run = async () => {
       if (!token) {
         setStatus("invalid");
@@ -65,8 +70,16 @@ function VerifyEmailContent() {
             : purpose === "account-delete"
               ? `/api/auth/account/delete/verify?token=${encodeURIComponent(token)}`
             : `/api/auth/verify?token=${encodeURIComponent(token)}`;
-        const response = await fetch(withApiBase(endpoint), { method: "GET", cache: "no-store" });
-        const payload = (await response.json()) as { error?: string; alreadyVerified?: boolean };
+        const response = await fetch(withApiBase(endpoint), {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        });
+        const payload = (await response.json()) as {
+          error?: string;
+          alreadyVerified?: boolean;
+          user?: { id: number; email: string; name?: string | null; expiresAt: number };
+        };
 
         if (!response.ok) {
           setStatus("invalid");
@@ -81,9 +94,20 @@ function VerifyEmailContent() {
           return;
         }
 
-        if (purpose === "email-verification" && payload?.alreadyVerified) {
-          setStatus("already");
-          setMessage("Your email is already verified. You can sign in now.");
+        if (purpose === "email-verification") {
+          if (payload?.user) {
+            setStoredUser(payload.user);
+          }
+          if (payload?.alreadyVerified) {
+            setStatus("already");
+            setMessage("Your email is already verified. Redirecting to your dashboard...");
+          } else {
+            setStatus("success");
+            setMessage("Email verified successfully. Redirecting to your dashboard...");
+          }
+          redirectTimeout = window.setTimeout(() => {
+            router.replace("/home");
+          }, 600);
           return;
         }
 
@@ -91,9 +115,7 @@ function VerifyEmailContent() {
         setMessage(
           purpose === "password-change"
             ? "Password updated successfully. You can sign in with your new password."
-            : purpose === "account-delete"
-              ? "Account deleted successfully."
-            : "Email verified successfully. You can sign in now.",
+            : "Account deleted successfully.",
         );
       } catch (error) {
         setStatus("error");
@@ -102,7 +124,12 @@ function VerifyEmailContent() {
     };
 
     void run();
-  }, [purpose, token]);
+    return () => {
+      if (redirectTimeout) {
+        window.clearTimeout(redirectTimeout);
+      }
+    };
+  }, [purpose, router, token]);
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-16">
@@ -114,13 +141,41 @@ function VerifyEmailContent() {
               ? "Account Deletion"
               : "Email Verification"}
         </h1>
-        <p className="mt-3 text-sm text-slate-700">{message}</p>
+        <p
+          className={`mt-3 rounded-xl border px-4 py-3 text-sm ${
+            status === "success" || status === "already"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : status === "invalid" || status === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-slate-200 bg-slate-50 text-slate-700"
+          }`}
+        >
+          {message}
+        </p>
 
         {(status === "success" || status === "already") && (
           <button
             type="button"
-            onClick={() => (window.location.href = "/login")}
+            onClick={() => {
+              if (purpose === "email-verification") {
+                router.replace("/home");
+                return;
+              }
+              window.location.href = "/login";
+            }}
             className="mt-6 h-11 w-full rounded-xl bg-indigo-500 text-white transition hover:bg-indigo-600"
+          >
+            {purpose === "email-verification" ? "Go to Dashboard" : "Go to Sign In"}
+          </button>
+        )}
+
+        {(status === "invalid" || status === "error") && (
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "/login";
+            }}
+            className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
           >
             Go to Sign In
           </button>
