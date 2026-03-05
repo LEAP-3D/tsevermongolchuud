@@ -8,6 +8,15 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 
 type VerifyState = "checking" | "success" | "already" | "invalid" | "error";
 type VerifyPurpose = "email-verification" | "password-change" | "account-delete";
+const TOKEN_QUERY_KEYS = ["token", "verificationToken", "verification_token", "code"] as const;
+
+const pickTokenFromParams = (params: { get: (key: string) => string | null }) => {
+  for (const key of TOKEN_QUERY_KEYS) {
+    const value = params.get(key);
+    if (value) return value;
+  }
+  return "";
+};
 
 const VerifyPageShell = ({ title, message }: { title: string; message: string }) => (
   <main className="min-h-screen bg-slate-50 px-4 py-16">
@@ -21,7 +30,18 @@ const VerifyPageShell = ({ title, message }: { title: string; message: string })
 function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = useMemo(() => searchParams.get("token") ?? "", [searchParams]);
+  const token = useMemo(() => {
+    const queryToken = pickTokenFromParams(searchParams);
+    if (queryToken) return queryToken;
+    if (typeof window === "undefined" || !window.location.hash) return "";
+
+    const hash = window.location.hash.startsWith("#")
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    const hashQuery = hash.includes("?") ? hash.split("?")[1] ?? "" : hash;
+    const hashParams = new URLSearchParams(hashQuery.startsWith("?") ? hashQuery.slice(1) : hashQuery);
+    return pickTokenFromParams(hashParams);
+  }, [searchParams]);
   const purpose = useMemo<VerifyPurpose>(() => {
     if (searchParams.get("purpose") === "account-delete") {
       return "account-delete";
@@ -30,6 +50,7 @@ function VerifyEmailContent() {
       ? "password-change"
       : "email-verification";
   }, [searchParams]);
+
   const [status, setStatus] = useState<VerifyState>("checking");
   const [message, setMessage] = useState<string>(
     purpose === "password-change"
