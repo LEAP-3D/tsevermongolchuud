@@ -2,11 +2,26 @@
   const fs = await import("node:fs");
   const path = await import("node:path");
 
-  const sourceDir = path.resolve(__dirname, "../../../node_modules/.prisma/client");
   const targetDir = path.resolve(__dirname, "../node_modules/.prisma/client");
+  const sourceCandidates = [
+    path.resolve(__dirname, "../../../node_modules/.prisma/client"),
+    path.resolve(__dirname, "../node_modules/.prisma/client"),
+  ];
 
-  if (!fs.existsSync(sourceDir)) {
-    throw new Error(`Prisma source client not found: ${sourceDir}`);
+  const sourceDir = sourceCandidates.find((candidate) => fs.existsSync(candidate));
+
+  if (!sourceDir) {
+    throw new Error(`Prisma source client not found. Tried: ${sourceCandidates.join(", ")}`);
+  }
+
+  if (fs.existsSync(targetDir)) {
+    console.log(`Prisma target client already exists: ${targetDir}`);
+    return;
+  }
+
+  if (path.resolve(sourceDir) === path.resolve(targetDir)) {
+    console.log(`Prisma client already in place: ${targetDir}`);
+    return;
   }
 
   fs.mkdirSync(path.dirname(targetDir), { recursive: true });
