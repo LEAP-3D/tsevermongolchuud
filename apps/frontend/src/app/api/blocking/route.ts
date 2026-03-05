@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest, unauthorizedJson } from "@/lib/session";
-import { filterRestrictedCategories } from "@/lib/categoryFilters";
+import { dedupeCategoriesByNormalizedName, filterRestrictedCategories } from "@/lib/categoryFilters";
 
 const requireChild = async (childId: number, parentId: number) => {
   const child = await prisma.child.findUnique({
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
       })
     : [];
 
-  const visibleCategories = filterRestrictedCategories(categories);
+  const visibleCategories = dedupeCategoriesByNormalizedName(filterRestrictedCategories(categories));
   const statusMap = new Map(categorySettings.map((setting) => [setting.categoryId, setting.status]));
   const sourceByCategoryId = new Map(
     categorySettings

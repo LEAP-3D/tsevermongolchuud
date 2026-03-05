@@ -38,19 +38,30 @@ const DEFAULT_CATEGORY_MINUTES = 60;
 
 const normalizeCategoryKey = (value: string) => value.trim().toLowerCase();
 
+const dedupeByCategoryKey = <T extends { name: string }>(items: T[]) => {
+  const byKey = new Map<string, T>();
+  for (const item of items) {
+    const key = normalizeCategoryKey(item.name);
+    if (!key || byKey.has(key)) continue;
+    byKey.set(key, item);
+  }
+  return [...byKey.values()];
+};
+
 const buildCategoryLimits = (
   availableCategories: Array<{ id: number; name: string }>,
   savedLimits: LimitItem[] | null | undefined,
   fallbackMinutes = DEFAULT_CATEGORY_MINUTES,
 ): LimitItem[] => {
-  const saved = Array.isArray(savedLimits) ? savedLimits : [];
-  if (!availableCategories || availableCategories.length === 0) {
+  const saved = dedupeByCategoryKey(Array.isArray(savedLimits) ? savedLimits : []);
+  const uniqueAvailableCategories = dedupeByCategoryKey(availableCategories ?? []);
+  if (!uniqueAvailableCategories || uniqueAvailableCategories.length === 0) {
     return saved;
   }
   const savedByKey = new Map(
     saved.map((item) => [normalizeCategoryKey(item.name), item]),
   );
-  return availableCategories.map((category, index) => {
+  return uniqueAvailableCategories.map((category, index) => {
     const key = normalizeCategoryKey(category.name);
     const savedItem = savedByKey.get(key);
     const minutesValue = Number(savedItem?.minutes);
@@ -442,9 +453,9 @@ export default function TimeLimitsContent({
             : defaultAppLimits
         );
         const nextAvailableCategories = payload.availableCategories ?? [];
-        setAvailableCategories(nextAvailableCategories);
+        setAvailableCategories(dedupeByCategoryKey(nextAvailableCategories));
         const nextCategoryLimits = buildCategoryLimits(
-          nextAvailableCategories,
+          dedupeByCategoryKey(nextAvailableCategories),
           payload.categoryLimits,
           DEFAULT_CATEGORY_MINUTES,
         );

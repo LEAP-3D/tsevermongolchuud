@@ -10,7 +10,16 @@ type IncomingChatMessage = {
 
 type AssistantAction =
   | { type: "BLOCK_DOMAIN"; childId?: number; childName?: string; domain?: string }
+  | { type: "UNBLOCK_DOMAIN"; childId?: number; childName?: string; domain?: string }
   | { type: "BLOCK_CATEGORY"; childId?: number; childName?: string; categoryName?: string }
+  | { type: "UNBLOCK_CATEGORY"; childId?: number; childName?: string; categoryName?: string }
+  | {
+      type: "SET_CATEGORY_LIMIT";
+      childId?: number;
+      childName?: string;
+      categoryName?: string;
+      minutes?: number;
+    }
   | { type: "SET_WEEKDAY_LIMIT"; childId?: number; childName?: string; minutes?: number }
   | { type: "SET_WEEKEND_LIMIT"; childId?: number; childName?: string; minutes?: number }
   | { type: "SET_SESSION_LIMIT"; childId?: number; childName?: string; minutes?: number };
@@ -41,6 +50,34 @@ const toSafeMinutes = (value: unknown, fallbackMinutes: number) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallbackMinutes;
   return Math.max(1, Math.round(numeric));
+};
+
+const getOrCreateCategoryByName = async (name: string) => {
+  const trimmed = name.trim();
+  const existing = await prisma.categoryCatalog.findFirst({
+    where: {
+      name: {
+        equals: trimmed,
+        mode: "insensitive",
+      },
+    },
+  });
+  if (existing) return existing;
+  return prisma.categoryCatalog.create({ data: { name: trimmed } });
+};
+
+const extractCategoryNameFromText = (text: string) => {
+  const quoted = text.match(/["“”']([^"“”']{2,60})["“”']/);
+  if (quoted?.[1]) return quoted[1].trim();
+  const patterns = [
+    /(?:category|ангилал)\s*(?:limit)?\s*(?:for|to|:)?\s*([a-zA-Z][a-zA-Z0-9\s-]{1,40})/i,
+    /([a-zA-Z][a-zA-Z0-9\s-]{1,40})\s*(?:category|ангилал)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return null;
 };
 
 const parseModelResponse = (raw: string): AssistantModelResponse | null => {
@@ -76,7 +113,10 @@ const normalizeActions = (actions: unknown[]): AssistantAction[] => {
     }
     if (
       action.type === "BLOCK_DOMAIN" ||
+      action.type === "UNBLOCK_DOMAIN" ||
       action.type === "BLOCK_CATEGORY" ||
+      action.type === "UNBLOCK_CATEGORY" ||
+      action.type === "SET_CATEGORY_LIMIT" ||
       action.type === "SET_WEEKDAY_LIMIT" ||
       action.type === "SET_WEEKEND_LIMIT" ||
       action.type === "SET_SESSION_LIMIT"
@@ -116,7 +156,18 @@ const callGemini = async (prompt: string) => {
   return payload.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
 };
 
-const buildQuickSummary = async (parentId: number, selectedChildId: number | null) => {
+type AssistantContext = {
+  children: Array<{ id: number; name: string }>;
+  summary: string;
+  blockedDomainsByChild: Map<number, string[]>;
+  blockedCategoriesByChild: Map<number, string[]>;
+  categoryLimitsByChild: Map<number, Array<{ name: string; minutes: number }>>;
+};
+
+const buildQuickSummary = async (
+  parentId: number,
+  selectedChildId: number | null,
+): Promise<AssistantContext> => {
   const children = await prisma.child.findMany({
     where: { parentId },
     select: { id: true, name: true },
@@ -128,12 +179,18 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
     return {
       children,
       summary: "No children profiles found yet.",
+      blockedDomainsByChild: new Map(),
+      blockedCategoriesByChild: new Map(),
+      categoryLimitsByChild: new Map(),
     };
   }
 
+  const scopedChildIds =
+    selectedChildId && childIds.includes(selectedChildId) ? [selectedChildId] : childIds;
+
   const recentHistory = await prisma.history.findMany({
     where: {
-      childId: selectedChildId && childIds.includes(selectedChildId) ? selectedChildId : { in: childIds },
+      childId: { in: scopedChildIds },
     },
     orderBy: { visitedAt: "desc" },
     take: 60,
@@ -146,6 +203,81 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
       visitedAt: true,
     },
   });
+
+  const [blockedUrlSettings, blockedCategorySettings] = await Promise.all([
+    prisma.childUrlSetting.findMany({
+      where: { childId: { in: scopedChildIds }, status: "BLOCKED" },
+      select: { childId: true, urlId: true },
+    }),
+    prisma.childCategorySetting.findMany({
+      where: { childId: { in: scopedChildIds }, status: "BLOCKED" },
+      select: { childId: true, categoryId: true },
+    }),
+  ]);
+
+  const urlIds = [...new Set(blockedUrlSettings.map((item) => item.urlId))];
+  const categoryIds = [...new Set(blockedCategorySettings.map((item) => item.categoryId))];
+  const [blockedUrls, blockedCategories] = await Promise.all([
+    urlIds.length
+      ? prisma.urlCatalog.findMany({
+          where: { id: { in: urlIds } },
+          select: { id: true, domain: true },
+        })
+      : Promise.resolve([]),
+    categoryIds.length
+      ? prisma.categoryCatalog.findMany({
+          where: { id: { in: categoryIds } },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const domainByUrlId = new Map(blockedUrls.map((item) => [item.id, item.domain]));
+  const categoryNameById = new Map(blockedCategories.map((item) => [item.id, item.name]));
+  const blockedDomainsByChild = new Map<number, string[]>();
+  const blockedCategoriesByChild = new Map<number, string[]>();
+
+  for (const row of blockedUrlSettings) {
+    const domain = domainByUrlId.get(row.urlId);
+    if (!domain) continue;
+    const next = blockedDomainsByChild.get(row.childId) ?? [];
+    if (!next.includes(domain)) next.push(domain);
+    blockedDomainsByChild.set(row.childId, next);
+  }
+  for (const row of blockedCategorySettings) {
+    const categoryName = categoryNameById.get(row.categoryId);
+    if (!categoryName) continue;
+    const next = blockedCategoriesByChild.get(row.childId) ?? [];
+    if (!next.includes(categoryName)) next.push(categoryName);
+    blockedCategoriesByChild.set(row.childId, next);
+  }
+
+  for (const domains of blockedDomainsByChild.values()) {
+    domains.sort((a, b) => a.localeCompare(b));
+  }
+  for (const categories of blockedCategoriesByChild.values()) {
+    categories.sort((a, b) => a.localeCompare(b));
+  }
+
+  const categoryLimitsByChild = new Map<number, Array<{ name: string; minutes: number }>>();
+  try {
+    const categoryLimitRows = await prisma.childCategoryLimit.findMany({
+      where: { childId: { in: scopedChildIds } },
+      select: { childId: true, name: true, minutes: true },
+      orderBy: [{ childId: "asc" }, { name: "asc" }],
+    });
+    for (const row of categoryLimitRows) {
+      const minutes = Number(row.minutes);
+      if (!Number.isFinite(minutes) || minutes <= 0) continue;
+      const next = categoryLimitsByChild.get(row.childId) ?? [];
+      next.push({ name: row.name, minutes: Math.round(minutes) });
+      categoryLimitsByChild.set(row.childId, next);
+    }
+  } catch (error) {
+    if (!isPrismaTableMissingError(error)) {
+      throw error;
+    }
+  }
 
   let childTimeLimits: Array<{
     childId: number;
@@ -175,7 +307,9 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
   }
 
   const limitByChild = new Map(childTimeLimits.map((item) => [item.childId, item]));
-  const summaryLines = children.map((child) => {
+  const summaryLines = children
+    .filter((child) => scopedChildIds.includes(child.id))
+    .map((child) => {
     const usageMinutes = usageByChild.get(child.id) ?? 0;
     const blocked = blockedByChild.get(child.id) ?? 0;
     const limits = limitByChild.get(child.id);
@@ -185,8 +319,20 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
     const weekday = Math.round(weekdayMinutes);
     const weekend = Math.round(weekendMinutes);
     const session = Math.round(sessionMinutes);
-    return `${child.name} (id:${child.id}): recent usage ${usageMinutes}m, blocked events ${blocked}, weekday limit ${weekday}m, weekend limit ${weekend}m, session limit ${session}m`;
-  });
+      const blockedDomains = blockedDomainsByChild.get(child.id) ?? [];
+      const blockedCategoriesForChild = blockedCategoriesByChild.get(child.id) ?? [];
+      const categoryLimits = categoryLimitsByChild.get(child.id) ?? [];
+      return [
+        `${child.name} (id:${child.id}): recent usage ${usageMinutes}m, blocked events ${blocked}, weekday limit ${weekday}m, weekend limit ${weekend}m, session limit ${session}m`,
+        `blocked domains: ${blockedDomains.length ? blockedDomains.join(", ") : "none"}`,
+        `blocked categories: ${blockedCategoriesForChild.length ? blockedCategoriesForChild.join(", ") : "none"}`,
+        `category limits: ${
+          categoryLimits.length
+            ? categoryLimits.map((item) => `${item.name} ${item.minutes}m`).join(", ")
+            : "none"
+        }`,
+      ].join("\n");
+    });
 
   const topDomains = recentHistory
     .reduce<Map<string, number>>((map, item) => {
@@ -205,17 +351,36 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
   return {
     children,
     summary: `${summaryLines.join("\n")}\nTop domains: ${domainList || "none"}`,
+    blockedDomainsByChild,
+    blockedCategoriesByChild,
+    categoryLimitsByChild,
   };
 };
 
-const fallbackAssistant = (message: string, summary: string): AssistantModelResponse => {
+const fallbackAssistant = (
+  message: string,
+  summary: string,
+  context: AssistantContext,
+  selectedChildId: number | null,
+): AssistantModelResponse => {
   const text = message.toLowerCase();
   const numeric = text.match(/(\d{2,3})\s*(min|minute|minutes|m)\b/i);
   const domainMatch = text.match(/\b([a-z0-9-]+\.)+[a-z]{2,}\b/i);
+  const categoryName = extractCategoryNameFromText(message);
+  const unblockIntentRegex = /\b(unblock|allow|whitelist|unban|remove block)\b/i;
   const summaryIntentRegex =
     /\b(summary|activity|activities|usage|report|reports|safety|risk|internet|online|dashboard)\b/i;
+  const blockedListIntentRegex =
+    /\b(blocked sites?|blocked domains?|blocked categories?|all blocked|list blocked)\b/i;
   const casualChatRegex =
     /\b(hello|hi|hey|how are you|joke|story|explain|translate|movie|music|travel|code|help|what is|who is)\b/i;
+
+  if (unblockIntentRegex.test(text) && domainMatch) {
+    return {
+      reply: `I can allow ${domainMatch[0]}. Please confirm and I will apply it to the selected child (or specify child name).`,
+      actions: [{ type: "UNBLOCK_DOMAIN", domain: domainMatch[0] }],
+    };
+  }
 
   if (BLOCK_INTENT_REGEX.test(text) && domainMatch) {
     return {
@@ -224,10 +389,49 @@ const fallbackAssistant = (message: string, summary: string): AssistantModelResp
     };
   }
 
+  if (unblockIntentRegex.test(text) && categoryName && /\b(category|ангилал)\b/i.test(text)) {
+    return {
+      reply: `I can allow ${categoryName} category. Please confirm and I will apply it.`,
+      actions: [{ type: "UNBLOCK_CATEGORY", categoryName }],
+    };
+  }
+
+  if (BLOCK_INTENT_REGEX.test(text) && categoryName && /\b(category|ангилал)\b/i.test(text)) {
+    return {
+      reply: `I can block ${categoryName} category. Please confirm and I will apply it.`,
+      actions: [{ type: "BLOCK_CATEGORY", categoryName }],
+    };
+  }
+
   const isWeekdayRequest = /\b(weekday|weekdays|school day|mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday)\b/i.test(text);
   const isWeekendRequest = /\b(weekend|weekends|sat|saturday|sun|sunday)\b/i.test(text);
   const isDailyRequest = /\b(daily|per day|өдөр|өдрийн)\b/i.test(text);
   const isSessionRequest = /\b(session|one session|нэг удаа)\b/i.test(text);
+  const isCategoryLimitRequest =
+    /\b(category|ангилал)\b/i.test(text) && /\b(limit|set|change|update|хязгаар)\b/i.test(text);
+
+  if (blockedListIntentRegex.test(text)) {
+    const scopedChildIds =
+      selectedChildId && context.children.some((child) => child.id === selectedChildId)
+        ? [selectedChildId]
+        : context.children.map((child) => child.id);
+
+    const lines = scopedChildIds.map((childId) => {
+      const child = context.children.find((item) => item.id === childId);
+      const blockedDomains = context.blockedDomainsByChild.get(childId) ?? [];
+      const blockedCategories = context.blockedCategoriesByChild.get(childId) ?? [];
+      return [
+        `${child?.name ?? `child ${childId}`}:`,
+        `- blocked domains: ${blockedDomains.length ? blockedDomains.join(", ") : "none"}`,
+        `- blocked categories: ${blockedCategories.length ? blockedCategories.join(", ") : "none"}`,
+      ].join("\n");
+    });
+
+    return {
+      reply: `Current blocked sites and categories:\n\n${lines.join("\n\n")}`,
+      actions: [],
+    };
+  }
 
   if (LIMIT_INTENT_REGEX.test(text) && numeric && isWeekdayRequest) {
     return {
@@ -247,6 +451,19 @@ const fallbackAssistant = (message: string, summary: string): AssistantModelResp
     return {
       reply: `I can set session limit to ${numeric[1]} minutes. Please confirm and I will apply it to the selected child (or specify child name).`,
       actions: [{ type: "SET_SESSION_LIMIT", minutes: Number(numeric[1]) }],
+    };
+  }
+
+  if (isCategoryLimitRequest && numeric && categoryName) {
+    return {
+      reply: `I can set ${categoryName} category limit to ${numeric[1]} minutes. Please confirm and I will apply it.`,
+      actions: [
+        {
+          type: "SET_CATEGORY_LIMIT",
+          categoryName,
+          minutes: Number(numeric[1]),
+        },
+      ],
     };
   }
 
@@ -277,7 +494,7 @@ const fallbackAssistant = (message: string, summary: string): AssistantModelResp
 
   return {
     reply:
-      "I can help with both general chat and parental controls. Ask me any question, or request actions like blocking a domain or changing weekday/weekend/session limits.",
+      "I can help with both general chat and parental controls. Ask me any question, or request actions like block/unblock domain, block/unblock category, and changing weekday/weekend/session/category limits.",
     actions: [],
   };
 };
@@ -317,10 +534,10 @@ const executeActions = async (
       continue;
     }
 
-    if (action.type === "BLOCK_DOMAIN") {
+    if (action.type === "BLOCK_DOMAIN" || action.type === "UNBLOCK_DOMAIN") {
       const rawDomain = action.domain ? toSafeDomain(action.domain) : "";
       if (!rawDomain) {
-        errors.push("Missing or invalid domain for block action.");
+        errors.push("Missing or invalid domain for domain action.");
         continue;
       }
 
@@ -338,36 +555,114 @@ const executeActions = async (
 
       await prisma.childUrlSetting.upsert({
         where: { childId_urlId: { childId, urlId: url.id } },
-        update: { status: "BLOCKED", timeLimit: -1 },
-        create: { childId, urlId: url.id, status: "BLOCKED", timeLimit: -1 },
+        update: {
+          status: action.type === "BLOCK_DOMAIN" ? "BLOCKED" : "ALLOWED",
+          timeLimit: action.type === "BLOCK_DOMAIN" ? -1 : null,
+        },
+        create: {
+          childId,
+          urlId: url.id,
+          status: action.type === "BLOCK_DOMAIN" ? "BLOCKED" : "ALLOWED",
+          timeLimit: action.type === "BLOCK_DOMAIN" ? -1 : null,
+        },
       });
 
       const child = children.find((item) => item.id === childId);
-      executed.push(`Blocked ${rawDomain} for ${child?.name ?? `child ${childId}`}.`);
+      if (action.type === "BLOCK_DOMAIN") {
+        executed.push(`Blocked ${rawDomain} for ${child?.name ?? `child ${childId}`}.`);
+      } else {
+        executed.push(`Allowed ${rawDomain} for ${child?.name ?? `child ${childId}`}.`);
+      }
       continue;
     }
 
-    if (action.type === "BLOCK_CATEGORY") {
+    if (action.type === "BLOCK_CATEGORY" || action.type === "UNBLOCK_CATEGORY") {
       const name = action.categoryName?.trim();
       if (!name) {
-        errors.push("Missing category name for block-category action.");
+        errors.push("Missing category name for category action.");
         continue;
       }
 
-      const category = await prisma.categoryCatalog.upsert({
-        where: { name },
-        update: {},
-        create: { name },
-      });
+      const category = await getOrCreateCategoryByName(name);
 
       await prisma.childCategorySetting.upsert({
         where: { childId_categoryId: { childId, categoryId: category.id } },
-        update: { status: "BLOCKED", timeLimit: -1 },
-        create: { childId, categoryId: category.id, status: "BLOCKED", timeLimit: -1 },
+        update: {
+          status: action.type === "BLOCK_CATEGORY" ? "BLOCKED" : "ALLOWED",
+          timeLimit: action.type === "BLOCK_CATEGORY" ? -1 : null,
+        },
+        create: {
+          childId,
+          categoryId: category.id,
+          status: action.type === "BLOCK_CATEGORY" ? "BLOCKED" : "ALLOWED",
+          timeLimit: action.type === "BLOCK_CATEGORY" ? -1 : null,
+        },
       });
 
       const child = children.find((item) => item.id === childId);
-      executed.push(`Blocked ${name} category for ${child?.name ?? `child ${childId}`}.`);
+      if (action.type === "BLOCK_CATEGORY") {
+        executed.push(`Blocked ${category.name} category for ${child?.name ?? `child ${childId}`}.`);
+      } else {
+        executed.push(`Allowed ${category.name} category for ${child?.name ?? `child ${childId}`}.`);
+      }
+      continue;
+    }
+
+    if (action.type === "SET_CATEGORY_LIMIT") {
+      const name = action.categoryName?.trim();
+      const minutes = Number(action.minutes);
+      if (!name) {
+        errors.push("Missing category name for set-category-limit action.");
+        continue;
+      }
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        errors.push("Invalid minutes for set-category-limit action.");
+        continue;
+      }
+
+      const roundedMinutes = Math.round(minutes);
+      const category = await getOrCreateCategoryByName(name);
+
+      try {
+        await prisma.childCategoryLimit.upsert({
+          where: {
+            childId_name: {
+              childId,
+              name: category.name,
+            },
+          },
+          update: { minutes: roundedMinutes },
+          create: {
+            childId,
+            name: category.name,
+            minutes: roundedMinutes,
+          },
+        });
+      } catch (error) {
+        if (!isPrismaTableMissingError(error)) {
+          throw error;
+        }
+        errors.push(
+          "Category-limit table is missing in current database. Run your existing DB migration/push workflow.",
+        );
+        continue;
+      }
+
+      await prisma.childCategorySetting.upsert({
+        where: { childId_categoryId: { childId, categoryId: category.id } },
+        update: { status: "LIMITED", timeLimit: roundedMinutes },
+        create: {
+          childId,
+          categoryId: category.id,
+          status: "LIMITED",
+          timeLimit: roundedMinutes,
+        },
+      });
+
+      const child = children.find((item) => item.id === childId);
+      executed.push(
+        `Set ${category.name} category limit to ${roundedMinutes}m for ${child?.name ?? `child ${childId}`}.`,
+      );
       continue;
     }
 
@@ -472,7 +767,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No actions provided for confirmation." }, { status: 400 });
     }
 
-    const { children, summary } = await buildQuickSummary(parentId, selectedChildId);
+    const context = await buildQuickSummary(parentId, selectedChildId);
+    const { children, summary } = context;
     if (children.length === 0) {
       return NextResponse.json({
         reply: "I couldn't find any children for this account yet. Add a child profile first.",
@@ -492,7 +788,7 @@ Return strict JSON only, format:
   "reply": "string",
   "actions": [
     {
-      "type": "BLOCK_DOMAIN|BLOCK_CATEGORY|SET_WEEKDAY_LIMIT|SET_WEEKEND_LIMIT|SET_SESSION_LIMIT",
+      "type": "BLOCK_DOMAIN|UNBLOCK_DOMAIN|BLOCK_CATEGORY|UNBLOCK_CATEGORY|SET_CATEGORY_LIMIT|SET_WEEKDAY_LIMIT|SET_WEEKEND_LIMIT|SET_SESSION_LIMIT",
       "childId": number optional,
       "childName": string optional,
       "domain": "example.com" optional,
@@ -509,6 +805,7 @@ Rules:
 - If user asks only analysis/general chat, return empty actions array.
 - Do not invent children not in this list: ${childDescriptor}.
 - Domain must be plain hostname only.
+- For SET_CATEGORY_LIMIT include both categoryName and minutes.
 - Keep reply concise and actionable.
 
 Current account summary:
@@ -530,7 +827,7 @@ ${message}`;
       }
 
       if (!assistantResult) {
-        assistantResult = fallbackAssistant(message, summary);
+        assistantResult = fallbackAssistant(message, summary, context, selectedChildId);
       }
     }
 
