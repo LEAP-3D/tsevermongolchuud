@@ -8,7 +8,7 @@ const FEATURES = [
   },
   {
     title: "Flexible time limits",
-    description: "Set daily, weekday, weekend, and bedtime rules that match your family routine.",
+    description: "Set weekday, weekend, and bedtime rules that match your family routine.",
     icon: Clock,
   },
   {

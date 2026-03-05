@@ -1,4 +1,3 @@
-import { Sora, Manrope } from "next/font/google";
 import LandingHeader from "./components/landing/LandingHeader";
 import LandingHero from "./components/landing/LandingHero";
 import LandingFeatures from "./components/landing/LandingFeatures";
@@ -6,27 +5,18 @@ import LandingInstall from "./components/landing/LandingInstall";
 import LandingHow from "./components/landing/LandingHow";
 import LandingCta from "./components/landing/LandingCta";
 import LandingFooter from "./components/landing/LandingFooter";
+import { getExtensionStoreUrl } from "@/lib/extensionStore";
 
-const heading = Sora({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-heading",
-});
+const bodyFamily = '"Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
 
-const body = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-body",
-});
-
-const STORE_URL = process.env.NEXT_PUBLIC_EXTENSION_STORE_URL ?? "";
+const STORE_URL = getExtensionStoreUrl();
 const hasStoreUrl = /^https?:\/\//i.test(STORE_URL);
 
 export default function LandingPage() {
   return (
     <main
-      className={`${body.variable} ${heading.variable} min-h-screen bg-slate-950 text-white`}
-      style={{ fontFamily: "var(--font-body)" }}
+      className="min-h-screen bg-slate-950 text-white"
+      style={{ fontFamily: bodyFamily }}
     >
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,_rgba(56,189,248,0.35)_0%,_rgba(56,189,248,0)_70%)]" />

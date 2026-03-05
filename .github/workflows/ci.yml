@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "latest"
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: ./apps/frontend/package-lock.json
       - name: Install dependencies
@@ -45,19 +45,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "latest"
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: ./apps/frontend/package-lock.json
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
       - name: Install dependencies
         run: npm ci
-      - name: Generate Prisma Client
-        run: npx prisma generate --schema ../../prisma/schema.prisma
-      - name: Vercel Pull and Build
-        run: |
-          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-          vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build
+        run: npm run build
 
   preview:
     needs: build
@@ -71,7 +65,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "latest"
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: ./apps/frontend/package-lock.json
       - name: Install Vercel CLI
@@ -79,13 +73,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma Client
-        run: npx prisma generate --schema ../../prisma/schema.prisma
+        run: npm run db:generate
       - name: Pull and Deploy Preview
         id: deploy
         run: |
           vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-          vercel build --token=${{ secrets.VERCEL_TOKEN }}
-          DEPLOY_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          DEPLOY_URL=""
+          max_attempts=8
+          sleep_seconds=30
+          for attempt in $(seq 1 $max_attempts); do
+            echo "Preview deploy attempt $attempt/$max_attempts"
+            if DEPLOY_URL=$(vercel deploy --yes --token=${{ secrets.VERCEL_TOKEN }}); then
+              break
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "Preview deploy failed, retrying in ${sleep_seconds}s..."
+              sleep "$sleep_seconds"
+              if [ "$sleep_seconds" -lt 120 ]; then
+                sleep_seconds=$((sleep_seconds + 15))
+              fi
+            fi
+          done
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "Preview deploy failed after $max_attempts attempts."
+            exit 1
+          fi
           echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
       - name: Post Preview Link to PR
         uses: mshick/add-pr-comment@v2

@@ -11,8 +11,12 @@ type IncomingChatMessage = {
 type AssistantAction =
   | { type: "BLOCK_DOMAIN"; childId?: number; childName?: string; domain?: string }
   | { type: "BLOCK_CATEGORY"; childId?: number; childName?: string; categoryName?: string }
-  | { type: "SET_DAILY_LIMIT"; childId?: number; childName?: string; minutes?: number }
+  | { type: "SET_WEEKDAY_LIMIT"; childId?: number; childName?: string; minutes?: number }
+  | { type: "SET_WEEKEND_LIMIT"; childId?: number; childName?: string; minutes?: number }
   | { type: "SET_SESSION_LIMIT"; childId?: number; childName?: string; minutes?: number };
+type AssistantActionOrLegacy =
+  | AssistantAction
+  | { type: "SET_DAILY_LIMIT"; childId?: number; childName?: string; minutes?: number };
 
 type AssistantModelResponse = {
   reply: string;
@@ -21,7 +25,7 @@ type AssistantModelResponse = {
 
 const ACTION_VERB_REGEX = /\b(block|ban|limit|set|change|update|restrict)\b/i;
 const BLOCK_INTENT_REGEX = /\b(block|ban|restrict)\b/i;
-const LIMIT_INTENT_REGEX = /\b(limit|set|change|update|daily|session)\b/i;
+const LIMIT_INTENT_REGEX = /\b(limit|set|change|update|daily|session|weekday|weekend)\b/i;
 const TABLE_NOT_FOUND_CODE = "P2021";
 
 const isPrismaTableMissingError = (error: unknown) =>
@@ -44,10 +48,43 @@ const parseModelResponse = (raw: string): AssistantModelResponse | null => {
     const parsed = JSON.parse(raw) as Partial<AssistantModelResponse>;
     if (!parsed || typeof parsed.reply !== "string") return null;
     const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
-    return { reply: parsed.reply, actions: actions as AssistantAction[] };
+    return { reply: parsed.reply, actions: normalizeActions(actions) };
   } catch {
     return null;
   }
+};
+
+const normalizeActions = (actions: unknown[]): AssistantAction[] => {
+  const normalized: AssistantAction[] = [];
+  for (const raw of actions) {
+    if (!raw || typeof raw !== "object") continue;
+    const action = raw as AssistantActionOrLegacy;
+    if (action.type === "SET_DAILY_LIMIT") {
+      normalized.push({
+        type: "SET_WEEKDAY_LIMIT",
+        childId: action.childId,
+        childName: action.childName,
+        minutes: action.minutes,
+      });
+      normalized.push({
+        type: "SET_WEEKEND_LIMIT",
+        childId: action.childId,
+        childName: action.childName,
+        minutes: action.minutes,
+      });
+      continue;
+    }
+    if (
+      action.type === "BLOCK_DOMAIN" ||
+      action.type === "BLOCK_CATEGORY" ||
+      action.type === "SET_WEEKDAY_LIMIT" ||
+      action.type === "SET_WEEKEND_LIMIT" ||
+      action.type === "SET_SESSION_LIMIT"
+    ) {
+      normalized.push(action);
+    }
+  }
+  return normalized;
 };
 
 const callGemini = async (prompt: string) => {
@@ -110,11 +147,16 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
     },
   });
 
-  let childTimeLimits: Array<{ childId: number; dailyLimit: number; sessionLimit: number }> = [];
+  let childTimeLimits: Array<{
+    childId: number;
+    weekdayLimit: number;
+    weekendLimit: number;
+    sessionLimit: number;
+  }> = [];
   try {
     childTimeLimits = await prisma.childTimeLimit.findMany({
       where: { childId: { in: childIds } },
-      select: { childId: true, dailyLimit: true, sessionLimit: true },
+      select: { childId: true, weekdayLimit: true, weekendLimit: true, sessionLimit: true },
     });
   } catch (error) {
     if (!isPrismaTableMissingError(error)) {
@@ -137,11 +179,13 @@ const buildQuickSummary = async (parentId: number, selectedChildId: number | nul
     const usageMinutes = usageByChild.get(child.id) ?? 0;
     const blocked = blockedByChild.get(child.id) ?? 0;
     const limits = limitByChild.get(child.id);
-    const dailyMinutes = toSafeMinutes(limits?.dailyLimit, 240);
+    const weekdayMinutes = toSafeMinutes(limits?.weekdayLimit, 180);
+    const weekendMinutes = toSafeMinutes(limits?.weekendLimit, 300);
     const sessionMinutes = toSafeMinutes(limits?.sessionLimit, 60);
-    const daily = Math.round(dailyMinutes);
+    const weekday = Math.round(weekdayMinutes);
+    const weekend = Math.round(weekendMinutes);
     const session = Math.round(sessionMinutes);
-    return `${child.name} (id:${child.id}): recent usage ${usageMinutes}m, blocked events ${blocked}, daily limit ${daily}m, session limit ${session}m`;
+    return `${child.name} (id:${child.id}): recent usage ${usageMinutes}m, blocked events ${blocked}, weekday limit ${weekday}m, weekend limit ${weekend}m, session limit ${session}m`;
   });
 
   const topDomains = recentHistory
@@ -180,10 +224,39 @@ const fallbackAssistant = (message: string, summary: string): AssistantModelResp
     };
   }
 
-  if (LIMIT_INTENT_REGEX.test(text) && /daily/i.test(text) && numeric) {
+  const isWeekdayRequest = /\b(weekday|weekdays|school day|mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday)\b/i.test(text);
+  const isWeekendRequest = /\b(weekend|weekends|sat|saturday|sun|sunday)\b/i.test(text);
+  const isDailyRequest = /\b(daily|per day|өдөр|өдрийн)\b/i.test(text);
+  const isSessionRequest = /\b(session|one session|нэг удаа)\b/i.test(text);
+
+  if (LIMIT_INTENT_REGEX.test(text) && numeric && isWeekdayRequest) {
     return {
-      reply: `I can set daily limit to ${numeric[1]} minutes. Please confirm and I will apply it to the selected child (or specify child name).`,
-      actions: [{ type: "SET_DAILY_LIMIT", minutes: Number(numeric[1]) }],
+      reply: `I can set weekday limit to ${numeric[1]} minutes. Please confirm and I will apply it to the selected child (or specify child name).`,
+      actions: [{ type: "SET_WEEKDAY_LIMIT", minutes: Number(numeric[1]) }],
+    };
+  }
+
+  if (LIMIT_INTENT_REGEX.test(text) && numeric && isWeekendRequest) {
+    return {
+      reply: `I can set weekend limit to ${numeric[1]} minutes. Please confirm and I will apply it to the selected child (or specify child name).`,
+      actions: [{ type: "SET_WEEKEND_LIMIT", minutes: Number(numeric[1]) }],
+    };
+  }
+
+  if (LIMIT_INTENT_REGEX.test(text) && numeric && isSessionRequest) {
+    return {
+      reply: `I can set session limit to ${numeric[1]} minutes. Please confirm and I will apply it to the selected child (or specify child name).`,
+      actions: [{ type: "SET_SESSION_LIMIT", minutes: Number(numeric[1]) }],
+    };
+  }
+
+  if (LIMIT_INTENT_REGEX.test(text) && numeric && isDailyRequest) {
+    return {
+      reply: `Daily limit was removed. I can set both weekday and weekend limits to ${numeric[1]} minutes. Please confirm and I will apply it to the selected child (or specify child name).`,
+      actions: [
+        { type: "SET_WEEKDAY_LIMIT", minutes: Number(numeric[1]) },
+        { type: "SET_WEEKEND_LIMIT", minutes: Number(numeric[1]) },
+      ],
     };
   }
 
@@ -204,7 +277,7 @@ const fallbackAssistant = (message: string, summary: string): AssistantModelResp
 
   return {
     reply:
-      "I can help with both general chat and parental controls. Ask me any question, or request actions like blocking a domain or changing daily/session limits.",
+      "I can help with both general chat and parental controls. Ask me any question, or request actions like blocking a domain or changing weekday/weekend/session limits.",
     actions: [],
   };
 };
@@ -298,7 +371,11 @@ const executeActions = async (
       continue;
     }
 
-    if (action.type === "SET_DAILY_LIMIT" || action.type === "SET_SESSION_LIMIT") {
+    if (
+      action.type === "SET_WEEKDAY_LIMIT" ||
+      action.type === "SET_WEEKEND_LIMIT" ||
+      action.type === "SET_SESSION_LIMIT"
+    ) {
       const minutes = Number(action.minutes);
       if (!Number.isFinite(minutes) || minutes <= 0) {
         errors.push(`Invalid minutes for ${action.type}.`);
@@ -308,7 +385,6 @@ const executeActions = async (
       try {
         const existing = await prisma.childTimeLimit.findUnique({ where: { childId } });
         const base = {
-          dailyLimit: toSafeMinutes(existing?.dailyLimit, 240),
           weekdayLimit: toSafeMinutes(existing?.weekdayLimit, 180),
           weekendLimit: toSafeMinutes(existing?.weekendLimit, 300),
           sessionLimit: toSafeMinutes(existing?.sessionLimit, 60),
@@ -318,16 +394,30 @@ const executeActions = async (
           downtimeEnabled: existing?.downtimeEnabled ?? true,
         };
 
+        const roundedMinutes = Math.round(minutes);
+        const nextWeekdayLimit =
+          action.type === "SET_WEEKDAY_LIMIT" ? roundedMinutes : base.weekdayLimit;
+        const nextWeekendLimit =
+          action.type === "SET_WEEKEND_LIMIT" ? roundedMinutes : base.weekendLimit;
+        const nextSessionLimit =
+          action.type === "SET_SESSION_LIMIT" ? roundedMinutes : base.sessionLimit;
+
         await prisma.childTimeLimit.upsert({
           where: { childId },
-          update:
-            action.type === "SET_DAILY_LIMIT"
-              ? { dailyLimit: Math.round(minutes) }
-              : { sessionLimit: Math.round(minutes) },
-          create:
-            action.type === "SET_DAILY_LIMIT"
-              ? { childId, ...base, dailyLimit: Math.round(minutes) }
-              : { childId, ...base, sessionLimit: Math.round(minutes) },
+          update: {
+            weekdayLimit: nextWeekdayLimit,
+            weekendLimit: nextWeekendLimit,
+            dailyLimit: Math.max(nextWeekdayLimit, nextWeekendLimit),
+            sessionLimit: nextSessionLimit,
+          },
+          create: {
+            childId,
+            ...base,
+            weekdayLimit: nextWeekdayLimit,
+            weekendLimit: nextWeekendLimit,
+            dailyLimit: Math.max(nextWeekdayLimit, nextWeekendLimit),
+            sessionLimit: nextSessionLimit,
+          },
         });
       } catch (error) {
         if (isPrismaTableMissingError(error)) {
@@ -340,8 +430,10 @@ const executeActions = async (
       }
 
       const child = children.find((item) => item.id === childId);
-      if (action.type === "SET_DAILY_LIMIT") {
-        executed.push(`Set daily limit to ${Math.round(minutes)}m for ${child?.name ?? `child ${childId}`}.`);
+      if (action.type === "SET_WEEKDAY_LIMIT") {
+        executed.push(`Set weekday limit to ${Math.round(minutes)}m for ${child?.name ?? `child ${childId}`}.`);
+      } else if (action.type === "SET_WEEKEND_LIMIT") {
+        executed.push(`Set weekend limit to ${Math.round(minutes)}m for ${child?.name ?? `child ${childId}`}.`);
       } else {
         executed.push(`Set session limit to ${Math.round(minutes)}m for ${child?.name ?? `child ${childId}`}.`);
       }
@@ -400,7 +492,7 @@ Return strict JSON only, format:
   "reply": "string",
   "actions": [
     {
-      "type": "BLOCK_DOMAIN|BLOCK_CATEGORY|SET_DAILY_LIMIT|SET_SESSION_LIMIT",
+      "type": "BLOCK_DOMAIN|BLOCK_CATEGORY|SET_WEEKDAY_LIMIT|SET_WEEKEND_LIMIT|SET_SESSION_LIMIT",
       "childId": number optional,
       "childName": string optional,
       "domain": "example.com" optional,
